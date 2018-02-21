@@ -44,7 +44,7 @@ print_string:                       ; Routine: output string in SI to screen
 
 
 ;===========
-; Display the contents of the Vector Interrupt Table
+; Display the contents of the Interrupt Vector Table
 ;===========
 print_ivt:
     push    ax
@@ -54,12 +54,12 @@ print_ivt:
     push    es
 
     mov     ax,0000h
-    mov     es,ax                   ; VIT table segment
-    mov     bx,ax                   ; VIT index offset
+    mov     es,ax                   ; IVT table segment
+    mov     bx,ax                   ; IVT index offset
 
 .pi_loop:
-    mov     cx,[es:bx]              ; VIT[i].segment
-    mov     dx,[es:bx+2]            ; VIT[i].offset
+    mov     cx,[es:bx]              ; IVT[i].segment
+    mov     dx,[es:bx+2]            ; IVT[i].offset
 
     mov     ax,cx                   ; print the segment
     shr     ax,8
