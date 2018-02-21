@@ -1,0 +1,39 @@
+
+CC = cl
+AS = nasm
+CFLAGS = -nologo -MD -W4 -O2 -EHsc
+WFLAGS = -DNDEBUG
+ASFLAGS = -f bin
+
+OBJS = bootloader.bin kernel.bin
+OBJA = writefloppy.exe
+
+all: $(OBJA) $(OBJS)
+    bin\writefloppy.exe -d bin -o bootdevice.flp $(OBJS)
+
+writefloppy.exe:
+    $(CC) $(CFLAGS) $(WFLAGS) src\tools\writefloppy.cpp /link -out:bin\writefloppy.exe
+
+bootloader.bin:
+    $(AS) $(ASFLAGS) -o bin\bootloader.bin src\bootloader.asm 
+
+kernel.bin:
+    $(AS) $(ASFLAGS) -o bin\kernel.bin src\kernel.asm 
+
+framework.bin:
+    $(AS) $(ASFLAGS) -o bin\framework.bin src\framework.asm 
+
+p_cmd.bin:
+    $(AS) $(ASFLAGS) -o bin\p_cmd.bin src\p_cmd.asm 
+
+p_text.bin:
+    $(AS) $(ASFLAGS) -o bin\p_text.bin src\p_text.asm 
+
+p_game.bin:
+    $(AS) $(ASFLAGS) -o bin\p_game.bin src\p_game.asm 
+
+clean:
+    -del /S *.obj
+    -del /S *.exe
+    -del /S *.bin
+    -del /S *.flp
