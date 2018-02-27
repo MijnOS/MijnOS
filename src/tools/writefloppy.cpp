@@ -6,9 +6,45 @@
 #include <cstdio>
 #include <cstring>
 #include <Windows.h>
+#include <queue>
 
 #define BUFFER_SIZE     512         /* Sectors are 512-bytes so use this for the buffer size. */
 #define FLOPPY_SIZE     1474560     /* The size of a typical floppy disk. */
+
+#define ARGUMENT_NO_VALUE(arg)      "Argument "arg" has no value specified.\n"
+
+/** Global variables */
+std::queue<const char*> g_queue;    /* All the input files as given */
+char g_outputFile[MAX_PATH];        /* The output file path */
+
+
+/**
+ * Determines the size of a file.
+ * @param pFile A pointer to the file stream.
+ * @return A negative value indicates an error occured; otherwise, the size of the file.
+ */
+long int fsize(FILE *pFile)
+{
+    long int size;
+
+    if (fseek(pFile, 0, SEEK_END))
+    {
+        return -1;
+    }
+
+    size = ftell(pFile);
+    if (size == -1L)
+    {
+        return -2;
+    }
+
+    if (fseek(pFile, 0, SEEK_SET))
+    {
+        return -3;
+    }
+
+    return size;
+}
 
 /**
  * Copies the data from the input files in the given order into the output files.
@@ -17,28 +53,43 @@
  * @param filev The array of input file names.
  * @return Zero if successful; otherwise, a non-zero value.
  */
-int copyData(FILE *oFile, int filec, char **filev)
+int copyData(FILE *oFile)
 {
     char buffer[BUFFER_SIZE];
     size_t offset, written, read = BUFFER_SIZE;
+    size_t size = 0;
 
     FILE *iFile = NULL;
-    int index = 0;
+    const char *path = nullptr;
     errno_t err;
 
     // Read and write per buffer till the output file has been filled
     for (offset = 0; offset < FLOPPY_SIZE; offset += BUFFER_SIZE)
     {
         // Open a new file if non is opened
-        if (index < filec && !iFile)
+        if (!iFile)
         {
-            err = fopen_s(&iFile, filev[index], "rb");
-            if (err)
+            if (!g_queue.empty())
             {
-                fprintf(stderr, "I/O Error: Could not open '%s' for reading.\n", filev[index]);
-                return 2;
+                path = g_queue.front();
+
+                err = fopen_s(&iFile, path, "rb");
+                if (err)
+                {
+                    fprintf(stderr, "I/O Error: Could not open '%s' for reading.\n", path);
+                    return 2;
+                }
+
+                g_queue.pop();
+
+                long int sz = fsize(iFile);
+                if (sz <= 0)
+                {
+                    fprintf(stderr, "I/O ERROR: Incorrect file size of %li\n", sz);
+                    return 3;
+                }
+                size = static_cast<size_t>(sz);
             }
-            index++;
         }
 
         // Clear the buffer
@@ -49,29 +100,43 @@ int copyData(FILE *oFile, int filec, char **filev)
             // Read from the input file
             read = fread(buffer, 1, BUFFER_SIZE, iFile);
 
-            // If the end of the input file has been reached, zero fill the remainder of the output file
+            // The filesize may be exactly that of a single buffer, hence we
+            // need to keep track of the size as this has to be check as well.
+            size -= read;
+
+            // We read to the end of the file
             if (read != BUFFER_SIZE)
             {
-                // Close the input file
-                if (iFile)
+                if (feof(iFile))
                 {
                     fclose(iFile);
                     iFile = NULL;
                 }
+                else
+                {
+                    if (!ferror(iFile))
+                    {
+                        fprintf(stderr, "I/O ERROR: An unknown condition occured.\n");
+                        fclose(iFile);
+                        return 4;
+                    }
+                }
             }
-        }
-        else
-        {
-            read = BUFFER_SIZE;
+            else if (size <= 0)
+            {
+                fclose(iFile);
+                iFile = NULL;
+            }
         }
 
         // Write the buffer to the output file
-        written = fwrite(buffer, 1, read, oFile);
+        written = fwrite(buffer, 1, BUFFER_SIZE, oFile);
 
         // Could not write the file, abort end give an error
-        if (read != written)
+        if (written != BUFFER_SIZE)
         {
-            fprintf(stderr, "I/O ERROR: Could not write all the bytes, %zu of %zu were written.\n", written, read);
+            fprintf(stderr, "I/O ERROR: Could not write all the bytes, %zu of %i were written.\n", written, BUFFER_SIZE);
+            fclose(iFile);
             return 1;
         }
     }
@@ -79,20 +144,103 @@ int copyData(FILE *oFile, int filec, char **filev)
     return 0;
 }
 
+int procArguments(int argc, char **argv)
+{
+    int i;
+
+    for (i = 0; i < argc; i++)
+    {
+        // Change the working directory
+        if (!strcmp(argv[i], "-d"))
+        {
+            if (++i >= argc)
+            {
+                printf(ARGUMENT_NO_VALUE("-d"));
+                continue;
+            }
+
+            // Change the working directory
+            if (!SetCurrentDirectoryA(argv[i]))
+            {
+                return 1;
+            }
+        }
+
+        // Change the output file
+        else if (!strcmp(argv[i], "-o"))
+        {
+            if (++i >= argc)
+            {
+                printf(ARGUMENT_NO_VALUE("-o"));
+                continue;
+            }
+
+            strncpy_s(g_outputFile, MAX_PATH, argv[i], _TRUNCATE);
+        }
+
+        // Otherwise it is an input file
+        else
+        {
+            g_queue.push(argv[i]);
+        }
+    }
+
+    return (i == argc) ? 0 : 1;
+}
+
+int setDefaults(void)
+{
+    return strcpy_s(g_outputFile, MAX_PATH, "default.flp");
+}
+
 void printUsage(const char *exeName)
 {
     // Display standard usage
-    printf("USAGE: %s <outputFile> inputFiles\n", exeName);
+    printf("\nUSAGE: %s <options> inputFiles\n", exeName);
 
     // Display an usage example
-    printf("EXAMPLE: %s device.flp bootloader.bin kernel.bin", exeName);
+    printf("\nEXAMPLE: %s -d .\\bin -o device.flp bootloader.bin kernel.bin\n", exeName);
+
+#define OPTION(arg, text) \
+    printf("%4s %s\n", arg, text)
+
+    // Options list
+    printf("\nOPTIONS\n");
+    OPTION("-d", "Change the working directory");
+    OPTION("-o", "Set the output file name");
+
+#undef OPTION
 }
 
-int main(int argc, char **argv)
+int initialize(int argc, char **argv)
 {
     if (argc < 3)
     {
         printUsage(argv[0]);
+        return 1;
+    }
+
+    // Set the defaults
+    if (setDefaults())
+    {
+        printf("Could set default values.\n");
+        return 1;
+    }
+
+    // Process the arguments but skip the executable name
+    if (procArguments(argc - 1, argv + 1))
+    {
+        printf("An error occured while processing the passed arguments.\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+int main(int argc, char **argv)
+{
+    if (initialize(argc, argv))
+    {
         return 0;
     }
 
@@ -100,14 +248,14 @@ int main(int argc, char **argv)
     errno_t err; // Windows error
 
     // Open the output file in write/binary
-    err = fopen_s(&oFile, argv[1], "wb");
+    err = fopen_s(&oFile, g_outputFile, "wb");
     if (err)
     {
         return 0;
     }
 
     // Copy the data and give a message on success
-    if (!copyData(oFile, argc - 2, argv + 2))
+    if (!copyData(oFile))
     {
         printf("Data has been written successfully!\n");
     }
