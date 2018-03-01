@@ -1,6 +1,8 @@
+;===========
+; https://technet.microsoft.com/en-us/library/cc976796.aspx
+;===========
 [BITS 16]
-[ORG 07C0h]
-    jmp near start
+    jmp near bootstrap
 
 ;===========
 ; OEM ID (8-bytes)
@@ -30,12 +32,15 @@ physical_drive_number   db 080h
 reserved                db 00h
 extended_boot_signature db 029h
 volume_serial_number    dd 0A88B3652h
-volume_label            db 'NO NAME', 0,0,0,0
-file_system_type        db 'FAT12', 0,0,0
+volume_label            db 'NO NAME', 020h, 020h, 020h, 020h
+file_system_type        db 'FAT12', 020h, 020h, 020h
 
 ;===========
 ; BOOTSTRAP (448-bytes)
 ;===========
+bootstrap:
+    jmp     07C0h:start
+
 start:
     mov     ax,cs
     mov     ds,ax
