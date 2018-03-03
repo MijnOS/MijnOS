@@ -173,43 +173,40 @@ int FAT_Root(FILE *stream)
     printf("\n");
     for (int i = 0; i < maximum_root_directories; i++)
     {
-        char dir[32];
+        //char dir[32];
+        //if (32 != fread(dir, 1, 32, stream))
+        //{
+        //    printf("FAILED\n");
+        //    return -1;
+        //}
 
-        if (32 != fread(dir, 1, 32, stream))
-        {
-            printf("FAILED\n");
-            return -1;
-        }
+        // Special characters...
+        //if (dir[0] == 0x00) continue; // Entry is available and no subsequent entry is in use
+        //if (dir[0] == 0x05) ; // Actual character is 0xE5
+        //if (dir[0] == 0x2E) ; // . or .. (special entry)
+        //if (dir[0] == 0xE5) continue; // Erased file
+//
+        READ_SIZE(8, "Filename");           //+8 = 8
 
-        if (dir[11] == FAT_ATTRIB_ARCHIVE)
-        {
-            printf(" ARCHIVE");
-        }
-        if (dir[11] == FAT_ATTRIB_SUBDIRECTORY)
-        {
-            printf(" SUBDIRECTORY");
-        }
-        if (dir[11] == FAT_ATTRIB_VOLUME_LABEL)
-        {
-            printf(" VOLUME_LABEL");
-        }
+        char *state = "valid";
+        if (g_buffer[0] == (char)0xE5)
+            state = "erased";
+
+        printf("\t%s (%hhu)\n", state, g_buffer[0]);
+        READ_SIZE(3, "Extension");          //+3 = 11
+        READ_BYTE("Attributes");            //+1 = 12
+        printf("\t%s\n", getAttributes(g_u8));
+        READ_BYTE("Reserved");              //+1 = 14
+        READ_BYTE("Creation->Time[0]");     //+1 = 15
+        READ_WORD("Creation->Time[1]");     //+2 = 16
+        READ_WORD("Creation->Date");        //+2 = 18
+        READ_WORD("LastAccess->Date");      //+2 = 20
+        READ_WORD("Ignore for FAT12");      //+2 = 22
+        READ_WORD("LastWrite->Time");       //+2 = 24
+        READ_WORD("LastWrite->Date");       //+2 = 26
+        READ_WORD("FirstLogicalSector");    //+2 = 28
+        READ_DWORD("FileSize");             //+4 = 32
         printf("\n");
-
-//        READ_SIZE(8, "Filename");           //+8 = 8
-//        READ_SIZE(3, "Extension");          //+3 = 11
-//        READ_BYTE("Attributes");            //+1 = 12
-//        printf("\t%s\n", getAttributes(g_u8));
-//        READ_BYTE("Reserved");              //+1 = 14
-//        READ_BYTE("Creation->Time[0]");     //+1 = 15
-//        READ_WORD("Creation->Time[1]");     //+2 = 16
-//        READ_WORD("Creation->Date");        //+2 = 18
-//        READ_WORD("LastAccess->Date");      //+2 = 20
-//        READ_WORD("Ignore for FAT12");      //+2 = 22
-//        READ_WORD("LastWrite->Time");       //+2 = 24
-//        READ_WORD("LastWrite->Date");       //+2 = 26
-//        READ_WORD("FirstLogicalSector");    //+2 = 28
-//        READ_DWORD("FileSize");             //+4 = 32
-//        printf("\n");
     }
 
     return 0;
