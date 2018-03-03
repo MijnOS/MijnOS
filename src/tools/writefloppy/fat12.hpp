@@ -84,6 +84,7 @@ typedef struct
 #define FAT_ATTRIB_VOLUME_LABEL     ((unsigned char)(0x08))
 #define FAT_ATTRIB_SUBDIRECTORY     ((unsigned char)(0x10))
 #define FAT_ATTRIB_ARCHIVE          ((unsigned char)(0x20))
+#define FAT_ATTRIB_LONGNAME         ((unsigned char)(0x0F))
 
 
 #endif //FAT12_HPP

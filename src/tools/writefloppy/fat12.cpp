@@ -47,13 +47,14 @@ uint32_t    g_u32;
 uint64_t    g_u64;
 
 #define READ_SIZE(count, fmt) \
+    memset(g_buffer, 0x20, count); \
     if (count != fread(g_buffer, 1, count, stream)) return -1; printf("%*.*s "fmt"\n", STR_OFFSET, count, g_buffer)
 
 #define READ_BYTE(fmt)  if (readBYTE(stream, &g_u8)) return -1; printf("%*hhu "fmt"\n", STR_OFFSET, g_u8)
 #define READ_WORD(fmt)  if (readWORD(stream, &g_u16)) return -1; printf("%*hu "fmt"\n", STR_OFFSET, g_u16)
 #define READ_DWORD(fmt) if (readDWORD(stream, &g_u32)) return -1; printf("%*u "fmt"\n", STR_OFFSET, g_u32)
 
-/** String function declerations */
+/** String function declarations */
 #define ATTRIB_BUFF_SIZE    1024
 char g_attributes[ATTRIB_BUFF_SIZE];
 const char* getType(uint16_t type);
@@ -172,8 +173,9 @@ int FAT_Root(FILE *stream)
         READ_SIZE(3, "Extension");          //+3 = 11
         READ_BYTE("Attributes");            //+1 = 12
         printf("\t%s\n", getAttributes(g_u8));
-        READ_WORD("Reserved");              //+2 = 14
-        READ_WORD("Creation->Time");        //+2 = 16
+        READ_BYTE("Reserved");              //+1 = 14
+        READ_BYTE("Creation->Time[0]");     //+1 = 15
+        READ_WORD("Creation->Time[1]");     //+2 = 16
         READ_WORD("Creation->Date");        //+2 = 18
         READ_WORD("LastAccess->Date");      //+2 = 20
         READ_WORD("Ignore for FAT12");      //+2 = 22
@@ -302,6 +304,11 @@ const char* getType(uint16_t type)
 const char* getAttributes(uint8_t attribs)
 {
     g_attributes[0] = '\0';
+
+    if (attribs == FAT_ATTRIB_LONGNAME)
+    {
+        return "LONGNAME";
+    }
 
 #define FAT_ATTRIB(var) \
     if (attribs & (FAT_ATTRIB_##var)) strcat_s(g_attributes, ATTRIB_BUFF_SIZE, " "#var)
