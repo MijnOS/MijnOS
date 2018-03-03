@@ -47,7 +47,7 @@ uint32_t    g_u32;
 uint64_t    g_u64;
 
 #define READ_SIZE(count, fmt) \
-    memset(g_buffer, 0x20, count); \
+    memset(g_buffer, 0, BUFFER_SIZE); \
     if (count != fread(g_buffer, 1, count, stream)) return -1; printf("%*.*s "fmt"\n", STR_OFFSET, count, g_buffer)
 
 #define READ_BYTE(fmt)  if (readBYTE(stream, &g_u8)) return -1; printf("%*hhu "fmt"\n", STR_OFFSET, g_u8)

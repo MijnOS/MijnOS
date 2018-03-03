@@ -34,3 +34,4 @@
 # MijnOS
 *.bin
 *.flp
+!docs/msdos.flp
