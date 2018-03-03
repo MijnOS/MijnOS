@@ -153,12 +153,16 @@ int FAT_Root(FILE *stream)
     uint16_t bytes_per_sector;
     uint16_t sectors_per_fat;
     uint8_t number_of_fats;
+    uint16_t maximum_root_directories;
     
     fseek(stream, 11, SEEK_SET);
     readWORD(stream, &bytes_per_sector);
 
     fseek(stream, 16, SEEK_SET);
     readBYTE(stream, & number_of_fats);
+
+    fseek(stream, 17, SEEK_SET);
+    readWORD(stream, &maximum_root_directories);
 
     fseek(stream, 22, SEEK_SET);
     readWORD(stream, &sectors_per_fat);
@@ -167,23 +171,45 @@ int FAT_Root(FILE *stream)
     fseek(stream, length, SEEK_SET);
 
     printf("\n");
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < maximum_root_directories; i++)
     {
-        READ_SIZE(8, "Filename");           // 8
-        READ_SIZE(3, "Extension");          //+3 = 11
-        READ_BYTE("Attributes");            //+1 = 12
-        printf("\t%s\n", getAttributes(g_u8));
-        READ_BYTE("Reserved");              //+1 = 14
-        READ_BYTE("Creation->Time[0]");     //+1 = 15
-        READ_WORD("Creation->Time[1]");     //+2 = 16
-        READ_WORD("Creation->Date");        //+2 = 18
-        READ_WORD("LastAccess->Date");      //+2 = 20
-        READ_WORD("Ignore for FAT12");      //+2 = 22
-        READ_WORD("LastWrite->Time");       //+2 = 24
-        READ_WORD("LastWrite->Date");       //+2 = 26
-        READ_WORD("FirstLogicalSector");    //+2 = 28
-        READ_DWORD("FileSize");             //+4 = 32
+        char dir[32];
+
+        if (32 != fread(dir, 1, 32, stream))
+        {
+            printf("FAILED\n");
+            return -1;
+        }
+
+        if (dir[11] == FAT_ATTRIB_ARCHIVE)
+        {
+            printf(" ARCHIVE");
+        }
+        if (dir[11] == FAT_ATTRIB_SUBDIRECTORY)
+        {
+            printf(" SUBDIRECTORY");
+        }
+        if (dir[11] == FAT_ATTRIB_VOLUME_LABEL)
+        {
+            printf(" VOLUME_LABEL");
+        }
         printf("\n");
+
+//        READ_SIZE(8, "Filename");           //+8 = 8
+//        READ_SIZE(3, "Extension");          //+3 = 11
+//        READ_BYTE("Attributes");            //+1 = 12
+//        printf("\t%s\n", getAttributes(g_u8));
+//        READ_BYTE("Reserved");              //+1 = 14
+//        READ_BYTE("Creation->Time[0]");     //+1 = 15
+//        READ_WORD("Creation->Time[1]");     //+2 = 16
+//        READ_WORD("Creation->Date");        //+2 = 18
+//        READ_WORD("LastAccess->Date");      //+2 = 20
+//        READ_WORD("Ignore for FAT12");      //+2 = 22
+//        READ_WORD("LastWrite->Time");       //+2 = 24
+//        READ_WORD("LastWrite->Date");       //+2 = 26
+//        READ_WORD("FirstLogicalSector");    //+2 = 28
+//        READ_DWORD("FileSize");             //+4 = 32
+//        printf("\n");
     }
 
     return 0;
@@ -214,15 +240,20 @@ int FAT_Data(FILE *stream)
     fseek(stream, length, SEEK_SET);
 
     // Test the data
-    char buffer[256];
+    char buffer[512];
     
-    if (256 != fread(buffer, 1, 256, stream))
+    for (int i = 0; i < 32; i++)
     {
-        return -1;
-    }
+        buffer[0] = '\0';
 
-    buffer[255] = '\0';
-    printf("\nDATA:\n\t%s\n", buffer);
+        if (512 != fread(buffer, 1, 512, stream))
+        {
+            return -1;
+        }
+
+        buffer[255] = '\0';
+        printf("\nDATA:\n\t%s\n", buffer);
+    }
 
     return 0;
 }
