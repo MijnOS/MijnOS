@@ -94,27 +94,49 @@ int FAT_Table(FILE *stream)
     uint8_t     buffer[3];  // Entries appear per 3
     uint16_t    value[2];   // We need 16-bits to hold the result
 
-    printf("\nFAT TABLE\n");
+    uint16_t bytes_per_sector;
+    uint16_t sectors_per_fat;
+    uint8_t number_of_fats;
+    
+    fseek(stream, 11, SEEK_SET);
+    readWORD(stream, &bytes_per_sector);
 
-    // Set the stream to the first table
-    fseek(stream, 512, SEEK_SET);
+    fseek(stream, 16, SEEK_SET);
+    readBYTE(stream, & number_of_fats);
 
-    //int length = (bytes_per_sector * sectors_per_fat) / 3
+    fseek(stream, 22, SEEK_SET);
+    readWORD(stream, &sectors_per_fat);
 
-    // NOTE: This should suffice for testing only
-    for (int i = 0; i < 5; i++)
+    int length = (bytes_per_sector * sectors_per_fat) / 3;
+
+    for (int y = 0; y < number_of_fats; y++)
     {
-        // We do need three bytes for every two entries
-        if (3 != fread(buffer, 1, 3, stream))
+        printf("\nFAT_TABLE (%i)\n", y);
+
+        int offset = 512 + ((bytes_per_sector * sectors_per_fat) * y);
+
+        // Set the stream to the first table
+        fseek(stream, offset, SEEK_SET);
+
+        // NOTE: This should suffice for testing only
+        for (int i = 0; i < length; i++)
         {
-            return -1;
+            // We do need three bytes for every two entries
+            if (3 != fread(buffer, 1, 3, stream))
+            {
+                return -1;
+            }
+
+            value[0] = ((buffer[1] & 0x0F) << 8) | buffer[0];
+            value[1] = (buffer[2] << 4) | ((buffer[1] & 0xF0) >> 4);
+
+            printf("  0x%03hX 0x%03hX", value[0], value[1]);
+
+            if ((i%8) == 7)
+            {
+                printf("\n");
+            }
         }
-
-        value[0] = ((buffer[1] & 0x0F) << 8) | buffer[0];
-        value[1] = (buffer[2] << 4) | ((buffer[1] & 0xF0) >> 4);
-
-        printf("0x%03hX\n", value[0]);
-        printf("0x%03hX\n", value[1]);
     }
 
     return 0;
