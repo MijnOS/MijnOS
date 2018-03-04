@@ -148,6 +148,71 @@ int FAT_Table(FILE *stream)
     return 0;
 }
 
+int FAT_Dir(FILE *stream)
+{
+    char dir[32];
+
+    if (32 != fread(dir, 1, 32, stream))
+    {
+        printf("FAILED\n");
+        return -1;
+    }
+
+    // Special characters...
+    if (dir[0] == (char)0xE5) return 0; // Erased file
+    if (dir[0] == (char)0x2E) return 0; // . or .. (special entry)
+    if (dir[0] == (char)0x05) dir[0] = (char)0xE5; // Actual character is 0xE5
+    if (dir[0] == (char)0x00) return 0; // Entry is available and no subsequent entry is in use
+
+    // Special cases can be skipped
+    if (dir[11] == FAT_ATTRIB_LONGNAME)
+    {
+        // VFAT
+        return 0;
+    }
+
+    // Here we split the attributes into two groups, these allows us to
+    // easier sort through it all.
+    uint8_t major = (dir[11] & (FAT_ATTRIB_VOLUME_LABEL | FAT_ATTRIB_SUBDIRECTORY | FAT_ATTRIB_ARCHIVE));
+    uint8_t minor = (dir[11] & (FAT_ATTRIB_READ_ONLY | FAT_ATTRIB_HIDDEN | FAT_ATTRIB_SYSTEM));
+
+    if (major != FAT_ATTRIB_VOLUME_LABEL &&
+        major != FAT_ATTRIB_SUBDIRECTORY &&
+        major != FAT_ATTRIB_ARCHIVE)
+    {
+        // INVALID
+        return 0;
+    }
+    printf("%-16s", getAttributes(major));
+    printf("\n\t%-16.8s%.3s", dir, dir+8);
+    printf("\n\tLogical sector: %hu", *((short*)(dir + 26)));
+    printf("\n\n");
+
+//    READ_SIZE(8, "Filename");           //+8 = 8
+//    
+//    char *state = "valid";
+//    if (g_buffer[0] == (char)0xE5)
+//        state = "erased";
+//
+//    printf("\t%s (%hhu)\n", state, g_buffer[0]);
+//    READ_SIZE(3, "Extension");          //+3 = 11
+//    READ_BYTE("Attributes");            //+1 = 12
+//    printf("\t%s\n", getAttributes(g_u8));
+//    READ_BYTE("Reserved");              //+1 = 14
+//    READ_BYTE("Creation->Time[0]");     //+1 = 15
+//    READ_WORD("Creation->Time[1]");     //+2 = 16
+//    READ_WORD("Creation->Date");        //+2 = 18
+//    READ_WORD("LastAccess->Date");      //+2 = 20
+//    READ_WORD("Ignore for FAT12");      //+2 = 22
+//    READ_WORD("LastWrite->Time");       //+2 = 24
+//    READ_WORD("LastWrite->Date");       //+2 = 26
+//    READ_WORD("FirstLogicalSector");    //+2 = 28
+//    READ_DWORD("FileSize");             //+4 = 32
+//    printf("\n");
+
+    return 0;
+}
+
 int FAT_Root(FILE *stream)
 {
     uint16_t bytes_per_sector;
@@ -173,40 +238,11 @@ int FAT_Root(FILE *stream)
     printf("\n");
     for (int i = 0; i < maximum_root_directories; i++)
     {
-        //char dir[32];
-        //if (32 != fread(dir, 1, 32, stream))
-        //{
-        //    printf("FAILED\n");
-        //    return -1;
-        //}
-
-        // Special characters...
-        //if (dir[0] == 0x00) continue; // Entry is available and no subsequent entry is in use
-        //if (dir[0] == 0x05) ; // Actual character is 0xE5
-        //if (dir[0] == 0x2E) ; // . or .. (special entry)
-        //if (dir[0] == 0xE5) continue; // Erased file
-//
-        READ_SIZE(8, "Filename");           //+8 = 8
-
-        char *state = "valid";
-        if (g_buffer[0] == (char)0xE5)
-            state = "erased";
-
-        printf("\t%s (%hhu)\n", state, g_buffer[0]);
-        READ_SIZE(3, "Extension");          //+3 = 11
-        READ_BYTE("Attributes");            //+1 = 12
-        printf("\t%s\n", getAttributes(g_u8));
-        READ_BYTE("Reserved");              //+1 = 14
-        READ_BYTE("Creation->Time[0]");     //+1 = 15
-        READ_WORD("Creation->Time[1]");     //+2 = 16
-        READ_WORD("Creation->Date");        //+2 = 18
-        READ_WORD("LastAccess->Date");      //+2 = 20
-        READ_WORD("Ignore for FAT12");      //+2 = 22
-        READ_WORD("LastWrite->Time");       //+2 = 24
-        READ_WORD("LastWrite->Date");       //+2 = 26
-        READ_WORD("FirstLogicalSector");    //+2 = 28
-        READ_DWORD("FileSize");             //+4 = 32
-        printf("\n");
+        int result = FAT_Dir(stream);
+        if (result)
+        {
+            return result;
+        }
     }
 
     return 0;
@@ -239,7 +275,7 @@ int FAT_Data(FILE *stream)
     // Test the data
     char buffer[512];
     
-    for (int i = 0; i < 32; i++)
+    for (int i = 0; i < 16; i++)
     {
         buffer[0] = '\0';
 
@@ -251,6 +287,78 @@ int FAT_Data(FILE *stream)
         buffer[255] = '\0';
         printf("\nDATA:\n\t%s\n", buffer);
     }
+
+    return 0;
+}
+
+int FAT_Sub(FILE *stream)
+{
+    // NOTE: This is the sub-directory's logical value
+    const int SUB_DIR_LOGICAL = 6;
+
+    uint16_t bytes_per_sector;
+    uint16_t sectors_per_fat;
+    uint8_t number_of_fats;
+    uint16_t maximum_root_directories;
+    
+    fseek(stream, 11, SEEK_SET);
+    readWORD(stream, &bytes_per_sector);
+
+    fseek(stream, 16, SEEK_SET);
+    readBYTE(stream, &number_of_fats);
+
+    fseek(stream, 17, SEEK_SET);
+    readWORD(stream, &maximum_root_directories);
+
+    fseek(stream, 22, SEEK_SET);
+    readWORD(stream, &sectors_per_fat);
+
+    // The starting position would be...
+    int start = 512
+        + (bytes_per_sector * number_of_fats * sectors_per_fat)
+        + (maximum_root_directories * 32);
+
+    // Translate the logical sector to physical sector
+    int offset = (bytes_per_sector * (SUB_DIR_LOGICAL - 2));
+
+    // Set the position 
+    int length = start + offset;
+    fseek(stream, length, SEEK_SET);
+
+#if 0
+    // Load the data
+    char buffer[512];
+    if (512 != fread(buffer, 1, 512, stream))
+    {
+        return -1;
+    }
+
+    // Output the data as hexadecimal characters
+    for (int i = 0; i < 512; i++)
+    {
+        printf("%02hhX", buffer[i]);
+
+        if ((i%16) == 15)
+        {
+            printf("\n");
+        }
+        else if ((i%2) == 1)
+        {
+            printf(" ");
+        }
+    }
+#else
+
+    for (int i = 0; i < (512/32); i++)
+    {
+        int result = FAT_Dir(stream);
+        if (result)
+        {
+            return result;
+        }
+    }
+
+#endif
 
     return 0;
 }
@@ -296,8 +404,17 @@ int main(int argc, char **argv)
         return 0;
     }
 
+#if 0
     // Read the data of the first file
     if (FAT_Data(iFile))
+    {
+        fclose(iFile);
+        return 0;
+    }
+#endif
+
+    // Read the sub-directory
+    if (FAT_Sub(iFile))
     {
         fclose(iFile);
         return 0;

@@ -56,6 +56,9 @@ typedef struct
     short date;
 } DateTime_t;
 
+/**
+ * A traditional FAT entry.
+ */
 typedef struct
 {
     char        filename[8];
@@ -69,6 +72,21 @@ typedef struct
     short       firstLogicalSector;
     int         fileSize;
 } FATEntry_t;
+
+/**
+ * A Long-File-Name (LFN) entry in FAT.
+ */
+typedef struct
+{
+    char        index;
+    wchar_t     str0[5];
+    uint8_t     attributes;
+    char        reserved;
+    uint8_t     checksum;
+    wchar_t     str1[6];
+    short       firstLogicalSector;
+    wchar_t     str2[2];
+} LFNEntry_t;
 
 // FAT entry types for next sector
 #define FAT_TYPE_UNUSED             ((unsigned char)(0x000))
