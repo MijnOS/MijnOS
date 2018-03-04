@@ -1,213 +1,173 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
-#include <Windows.h>
 #include <queue>
-
-#define BUFFER_SIZE     512         /* Sectors are 512-bytes so use this for the buffer size. */
-#define FLOPPY_SIZE     1474560     /* The size of a typical floppy disk. */
+#include "io.hpp"
+#include "globals.hpp"
+#include "fs_raw.hpp"
+#include "fs_fat12.hpp"
 
 #define ARGUMENT_NO_VALUE(arg)      "Argument "arg" has no value specified.\n"
 
+
 /** Global variables */
-std::queue<const char*> g_queue;    /* All the input files as given */
-char g_outputFile[MAX_PATH];        /* The output file path */
+std::queue<FileArg> g_queue;    /* All the input files as given */
+char g_outputFile[MAX_PATH];    /* The output file path */
+char *g_bootloader = nullptr;   /* The bootloader file */
+int g_filesystem;               /* The filesystem to use */
 
 
-/**
- * Determines the size of a file.
- * @param pFile A pointer to the file stream.
- * @return A negative value indicates an error occured; otherwise, the size of the file.
- */
-long int fsize(FILE *pFile)
-{
-    long int size;
-
-    if (fseek(pFile, 0, SEEK_END))
-    {
-        return -1;
-    }
-
-    size = ftell(pFile);
-    if (size == -1L)
-    {
-        return -2;
-    }
-
-    if (fseek(pFile, 0, SEEK_SET))
-    {
-        return -3;
-    }
-
-    return size;
-}
-
-/**
- * Copies the data from the input files in the given order into the output files.
- * @param oFile The output file stream.
- * @param filec The number of input files to process.
- * @param filev The array of input file names.
- * @return Zero if successful; otherwise, a non-zero value.
- */
-int copyData(FILE *oFile)
-{
-    char buffer[BUFFER_SIZE];
-    size_t offset, written, read = BUFFER_SIZE;
-    size_t size = 0;
-
-    FILE *iFile = NULL;
-    const char *path = nullptr;
-    errno_t err;
-
-    // Read and write per buffer till the output file has been filled
-    for (offset = 0; offset < FLOPPY_SIZE; offset += BUFFER_SIZE)
-    {
-        // Open a new file if non is opened
-        if (!iFile)
-        {
-            if (!g_queue.empty())
-            {
-                path = g_queue.front();
-
-                err = fopen_s(&iFile, path, "rb");
-                if (err)
-                {
-                    fprintf(stderr, "I/O Error: Could not open '%s' for reading.\n", path);
-                    return 2;
-                }
-
-                g_queue.pop();
-
-                long int sz = fsize(iFile);
-                if (sz <= 0)
-                {
-                    fprintf(stderr, "I/O ERROR: Incorrect file size of %li\n", sz);
-                    return 3;
-                }
-                size = static_cast<size_t>(sz);
-            }
-        }
-
-        // Clear the buffer
-        memset(buffer, 0, BUFFER_SIZE);
-
-        if (iFile)
-        {
-            // Read from the input file
-            read = fread(buffer, 1, BUFFER_SIZE, iFile);
-
-            // The filesize may be exactly that of a single buffer, hence we
-            // need to keep track of the size as this has to be checked as well.
-            size -= read;
-
-            // We read to the end of the file
-            if (read != BUFFER_SIZE)
-            {
-                if (feof(iFile))
-                {
-                    fclose(iFile);
-                    iFile = NULL;
-                }
-                else
-                {
-                    if (!ferror(iFile))
-                    {
-                        fprintf(stderr, "I/O ERROR: An unknown condition occured.\n");
-                        fclose(iFile);
-                        return 4;
-                    }
-                }
-            }
-            else if (size <= 0)
-            {
-                fclose(iFile);
-                iFile = NULL;
-            }
-        }
-
-        // Write the buffer to the output file
-        written = fwrite(buffer, 1, BUFFER_SIZE, oFile);
-
-        // Could not write the file, abort end give an error
-        if (written != BUFFER_SIZE)
-        {
-            fprintf(stderr, "I/O ERROR: Could not write all the bytes, %zu of %i were written.\n", written, BUFFER_SIZE);
-            fclose(iFile);
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
+/** Process the arguments passed to the application. */
 int procArguments(int argc, char **argv)
 {
     int i;
 
     for (i = 0; i < argc; i++)
     {
-        // Change the working directory
-        if (!strcmp(argv[i], "-d"))
+        // 'Quickly seperate arguments from file names
+        if (argv[i][0] == '-')
         {
-            if (++i >= argc)
+            // Set the bootloader file
+            if (!strcmp(argv[i], "-b"))
             {
-                printf(ARGUMENT_NO_VALUE("-d"));
-                continue;
+                if (++i >= argc)
+                {
+                    printf(ARGUMENT_NO_VALUE("-b"));
+                    continue;
+                }
+
+                // Change the bootloader name to the specified filename
+                g_bootloader = argv[i];
             }
 
             // Change the working directory
-            if (!SetCurrentDirectoryA(argv[i]))
+            if (!strcmp(argv[i], "-d"))
             {
-                return 1;
-            }
-        }
+                if (++i >= argc)
+                {
+                    printf(ARGUMENT_NO_VALUE("-d"));
+                    continue;
+                }
 
-        // Change the output file
-        else if (!strcmp(argv[i], "-o"))
-        {
-            if (++i >= argc)
+                // Change the working directory
+                if (!SetCurrentDirectoryA(argv[i]))
+                {
+                    return 1;
+                }
+            }
+
+            // Change the output file
+            else if (!strcmp(argv[i], "-o"))
             {
-                printf(ARGUMENT_NO_VALUE("-o"));
-                continue;
+                if (++i >= argc)
+                {
+                    printf(ARGUMENT_NO_VALUE("-o"));
+                    continue;
+                }
+
+                // Copy the filename into the array; but truncate if too long
+                strncpy_s(g_outputFile, MAX_PATH, argv[i], _TRUNCATE);
             }
 
-            strncpy_s(g_outputFile, MAX_PATH, argv[i], _TRUNCATE);
+            // Set the filesystem to raw
+            else if (!strcmp(argv[i], "-raw"))
+            {
+                g_filesystem = FS_RAW;
+            }
+
+            // Set the filesystem to FAT12
+            else if (!strcmp(argv[i], "-fat12"))
+            {
+                g_filesystem = FS_FAT12;
+            }
         }
 
         // Otherwise it is an input file
         else
         {
-            g_queue.push(argv[i]);
+            char *cur = argv[i];
+            char *sep = strchr(cur, ':');
+
+            // There is no seperator
+            if (sep == nullptr)
+            {
+                g_queue.push(FileArg(ATTRIB_NONE, cur));
+            }
+
+            // Seperate the attributes from the filename
+            else
+            {
+                int attributes = ATTRIB_NONE;
+
+                // Loop over all the characters
+                for (int j = 0; j < (sep-cur); j++)
+                {
+                    if (cur[j] == 'H')
+                    {
+                        attributes |= ATTRIB_HIDDEN;
+                    }
+                    else if (cur[j] == 'R')
+                    {
+                        attributes |= ATTRIB_READONLY;
+                    }
+                    else if (cur[j] == 'S')
+                    {
+                        attributes |= ATTRIB_SYSTEM;
+                    }
+                    else
+                    {
+                        printf("WARNING: Unknown file attribute '%c'\n", cur[j]);
+                    }
+                }
+
+                g_queue.push(FileArg(attributes, sep+1));
+            }
         }
     }
 
     return (i == argc) ? 0 : 1;
 }
 
+/** Set the globals to their default values. */
 int setDefaults(void)
 {
+    g_filesystem = FS_FAT12;
     return strcpy_s(g_outputFile, MAX_PATH, "default.flp");
 }
 
+/** Print a message on how to use the application. */
 void printUsage(const char *exeName)
 {
     // Display standard usage
-    printf("\nUSAGE: %s <options> inputFiles\n", exeName);
+    printf("\nUSAGE: %s <filesystem> <options> inputFiles\n", exeName);
 
     // Display an usage example
-    printf("\nEXAMPLE: %s -d .\\bin -o device.flp bootloader.bin kernel.bin\n", exeName);
+    printf("\nEXAMPLE: -fat12 %s -d .\\bin -o device.flp -b bootloader.bin RS:kernel.bin p_arkanoid.bin\n", exeName);
 
 #define OPTION(arg, text) \
-    printf("%4s %s\n", arg, text)
+    printf("  %-8s %s\n", arg, text)
+
+    // Filesystem
+    printf("\nFILESYSTEM (DEFAULT: -fat12)\n");
+    OPTION("-raw", "Use no filesystem");
+    OPTION("-fat12", "Use the FAT12 filesystem");
 
     // Options list
     printf("\nOPTIONS\n");
+    OPTION("-b", "Set the file to use as the bootloader (default: first input file)");
     OPTION("-d", "Change the working directory");
-    OPTION("-o", "Set the output file name");
+    OPTION("-o", "Set the output file name (default: default.flp)");
+
+    // Attributes
+    printf("\nATTRIBUTES (DEFAULT: none are set)\n");
+    OPTION("H", "Hidden");
+    OPTION("R", "Read-Only");
+    OPTION("S", "System");
 
 #undef OPTION
 }
 
+/** Initialize all the program variables to the correct values. */
 int initialize(int argc, char **argv)
 {
     if (argc < 3)
@@ -233,6 +193,7 @@ int initialize(int argc, char **argv)
     return 0;
 }
 
+/** Application entry point. */
 int main(int argc, char **argv)
 {
     if (initialize(argc, argv))
@@ -250,10 +211,33 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    // Copy the data and give a message on success
-    if (!copyData(oFile))
+    // Copy the data using the specified filesystem format;
+    // and give a message on both success and failure.
+    if (g_filesystem == FS_RAW)
     {
-        printf("Data has been written successfully!\n");
+        if (!Raw_CopyData(oFile))
+        {
+            printf("Data has been written successfully!\n");
+        }
+        else
+        {
+            printf("ERROR: Raw write failed.\n");
+        }
+    }
+    else if (g_filesystem == FS_FAT12)
+    {
+        if (!FAT12_CopyData(oFile))
+        {
+            printf("Data has been written successfully!\n");
+        }
+        else
+        {
+            printf("ERROR: FAT12 write failed.\n");
+        }
+    }
+    else
+    {
+        printf("ERROR: Filesystem not supported.\n");
     }
 
     // Close the file streams

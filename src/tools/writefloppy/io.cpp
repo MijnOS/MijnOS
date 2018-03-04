@@ -3,6 +3,35 @@
 #include <cstdint>
 #include "io.hpp"
 
+
+/**
+ * Determines the size of a file.
+ * @param stream A pointer to the file stream.
+ * @return A negative value indicates an error occured; otherwise, the size of the file.
+ */
+long int fsize(FILE *stream)
+{
+    long int size;
+
+    if (fseek(stream, 0, SEEK_END))
+    {
+        return -1;
+    }
+
+    size = ftell(stream);
+    if (size == -1L)
+    {
+        return -2;
+    }
+
+    if (fseek(stream, 0, SEEK_SET))
+    {
+        return -3;
+    }
+
+    return size;
+}
+
 /**
  * Determines the machine's endianness.
  * @return true if little-endian; otherwise, big-endian is assumed.

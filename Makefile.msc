@@ -6,10 +6,10 @@ WFLAGS = -DNDEBUG
 ASFLAGS = -f bin
 
 OBJS = bootloader.bin kernel.bin
-OBJA = src\tools\writefloppy\io.cpp src\tools\writefloppy\fat12.cpp src\tools\writefloppy\main.cpp
+OBJA = src\tools\writefloppy\io.cpp src\tools\writefloppy\fs_raw.cpp src\tools\writefloppy\fs_fat12.cpp src\tools\writefloppy\main.cpp
 
 all: writefloppy.exe $(OBJS)
-    bin\writefloppy.exe -d bin -o bootdevice.flp $(OBJS)
+    bin\writefloppy.exe -raw -d bin -o bootdevice.flp $(OBJS)
 
 writefloppy.exe:
     $(CC) $(CFLAGS) $(WFLAGS) $(OBJA) /link -out:bin\writefloppy.exe

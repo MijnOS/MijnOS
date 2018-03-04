@@ -1,6 +1,9 @@
 #ifndef IO_HPP
 #define IO_HPP
 
+/** Get the size of the file stream. */
+long int fsize(FILE *stream);
+
 /** Get an indicator to whether the machine uses little-endian. */
 bool isLittleEndian(void);
 
