@@ -1,39 +1,52 @@
-;===========
-; https://technet.microsoft.com/en-us/library/cc976796.aspx
-;===========
+; BPB
+%define OEM_ID                      'MijnOS_0'      ; OEM identifier
+%define BYTES_PER_SECTOR            512             ; Number of bytes per sector
+%define SECTORS_PER_CLUSTER         1               ; Number of sectors per cluster
+%define RESERVED_SECTORS            1               ; Number of reserved sectors
+%define NUMBER_OF_FATS              2               ; Number of FAT tables
+%define MAX_ROOT_ENTRIES            224             ; Maximum number of root directories
+%define NUM_SMALL_SECTORS           2880            ; Total sector count (For FAT16 and older)
+%define MEDIA_DESCRIPTOR            0F0h            ; 3.5" 1.44MB Floppy
+%define SECTORS_PERS_FAT            9               ; Sectors per FAT
+%define SECTORS_PER_TRACK           18              ; Sectors per track
+%define NUMBER_OF_HEADS             2               ; Number of heads
+%define HIDDEN_SECTORS              0               ; Number of hidden sectors
+%define NUM_LARGE_SECTORS           0               ; Total sector count (For FAT32 and newer)
+
+; Extended BPB
+%define PHYSICAL_DRIVE_NUMBER       0               ; Physical drive number
+%define EBPB_RESERVED               0               ; Reserved
+%define BOOT_SIGNATURE              029h            ; Boot signature, indicates the presence of the following three fields
+%define VOLUME_SERIAL_NUMBER        22352E33h       ; Volume id
+%define VOLUME_LABEL                'NO NAME    '   ; Volume label
+%define FILE_SYSTEM_TYPE            'FAT12   '      ; File system type
+
+
 [BITS 16]
     jmp near bootstrap
 
 ;===========
-; OEM ID (8-bytes)
+; FAT12
 ;===========
-oem_id db 'MijnOS_0'
-
-;===========
-; BPB (25-bytes)
-;===========
-bytes_per_sector        dw 0002h        ; 512-bytes per sector
-sectors_per_cluster     db 040h         ; 1 sector per cluster
-reserved_sectors        dw 0100h        ; Number of reserved sectors
-number_of_fats          db 02h          ; Number of FATs is 2
-root_entries            dw 0002h        ; Maximum number of root directory entries
-small_sectors           dw 0000h        ; Total sector count
-media_descriptor        db 0F8h         ; Switch to Floppy...
-sectors_per_fat         dw 0FC00h       ; Sectors per FAT
-sectors_per_track       dw 03F00h       ; Sectors per track
-number_of_heads         dw 04000h       ; Number of heads
-hidden_sectors          dd 03F000000h   ; Number of hidden sectors is 0
-large_sectors           dd 01F03E00h    ; Total sector count (0 for FAT12)
-
-;===========
-; Extended BPB (26-bytes)
-;===========
-physical_drive_number   db 080h         ; Physical drive number
-reserved                db 00h          ; Reserved
-extended_boot_signature db 029h         ; Boot signature, indicates the presence of the following three fields
-volume_serial_number    dd 0A88B3651h   ; Volume id (for quick eject, etc.)
-volume_label            db 'NO NAME', 020h, 020h, 020h, 020h    ; Volume label
-file_system_type        db 'FAT12', 020h, 020h, 020h            ; File system type
+db OEM_ID
+dw BYTES_PER_SECTOR
+db SECTORS_PER_CLUSTER
+dw RESERVED_SECTORS
+db NUMBER_OF_FATS
+dw MAX_ROOT_ENTRIES
+dw NUM_SMALL_SECTORS
+db MEDIA_DESCRIPTOR
+dw SECTORS_PERS_FAT
+dw SECTORS_PER_TRACK
+dw NUMBER_OF_HEADS
+dd HIDDEN_SECTORS
+dd NUM_LARGE_SECTORS
+db PHYSICAL_DRIVE_NUMBER
+db EBPB_RESERVED
+db BOOT_SIGNATURE
+dd VOLUME_SERIAL_NUMBER
+db VOLUME_LABEL
+db FILE_SYSTEM_TYPE
 
 ;===========
 ; BOOTSTRAP (448-bytes)
@@ -47,6 +60,16 @@ start:
     mov     es,ax
 
     jmp     $
+
+;===========
+; FAT12
+;===========
+%define DEF_FAT_ROOT    512+(NUMBER_OF_FATS * SECTORS_PERS_FAT * BYTES_PER_SECTOR)
+off_fat_root dw DEF_FAT_ROOT
+
+
+fat:
+    ret
 
 ;===========
 ; BOOT SIG (2-bytes)

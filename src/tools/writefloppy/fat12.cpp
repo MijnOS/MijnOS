@@ -15,8 +15,8 @@
 const char DATA[] = {
 /* BPB */
     STRING8('M', 'i', 'j', 'n', 'O', 'S', '_', '0'),        // OEM ID
-    FROM_WORD(512),         // Bytes per sector
-    FROM_BYTE(1),   // Sectors per cluster
+    FROM_WORD(512),         // Number of bytes per sector
+    FROM_BYTE(1),   // Number of sectors per cluster
     FROM_WORD(1),   // Number of reserved clusters
     FROM_BYTE(2),   // Number of FAT tables
     FROM_WORD(224),   // Maximum number of root directories
