@@ -4,35 +4,22 @@
 #include <queue>
 #include "fs_raw.hpp"
 #include "globals.hpp"
-#include "io.hpp"
+#include "utility.hpp"
 
 /** For a description see the header file. */
 int Raw_CopyData(FILE *oFile)
 {
     char buffer[BUFFER_SIZE];
     size_t offset, written, read = BUFFER_SIZE;
-    size_t size = 0;
-
-    long int sz;
-    FILE *iFile = NULL;
-    FileArg path;
-    errno_t err;
+    size_t size;
+    FILE *iFile;
 
     // Always start with the bootloader first
-    err = fopen_s(&iFile, g_bootloader, "rb");
-    if (err)
+    iFile = FS_OpenBootloader(&size);
+    if (iFile == NULL)
     {
-        fprintf(stderr, "I/O Error: Could not open bootloader file '%s' for reading.\n", g_bootloader);
         return -1;
     }
-
-    sz = fsize(iFile);
-    if (sz <= 0)
-    {
-        fprintf(stderr, "I/O ERROR: Incorrect file size of %li\n", sz);
-        return 3;
-    }
-    size = static_cast<size_t>(sz);
 
     // Read and write per buffer till the output file has been filled
     for (offset = 0; offset < FLOPPY_SIZE; offset += BUFFER_SIZE)
@@ -40,26 +27,10 @@ int Raw_CopyData(FILE *oFile)
         // Open a new file if non is opened
         if (!iFile)
         {
-            if (!g_queue.empty())
+            iFile = FS_OpenNextFile(&size, NULL);
+            if (!iFile)
             {
-                path = g_queue.front();
-
-                err = fopen_s(&iFile, path.filename, "rb");
-                if (err)
-                {
-                    fprintf(stderr, "I/O Error: Could not open '%s' for reading.\n", path.filename);
-                    return 2;
-                }
-
-                g_queue.pop();
-
-                sz = fsize(iFile);
-                if (sz <= 0)
-                {
-                    fprintf(stderr, "I/O ERROR: Incorrect file size of %li\n", sz);
-                    return 3;
-                }
-                size = static_cast<size_t>(sz);
+                return -1;
             }
         }
 
