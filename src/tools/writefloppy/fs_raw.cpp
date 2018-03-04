@@ -13,9 +13,26 @@ int Raw_CopyData(FILE *oFile)
     size_t offset, written, read = BUFFER_SIZE;
     size_t size = 0;
 
+    long int sz;
     FILE *iFile = NULL;
     FileArg path;
     errno_t err;
+
+    // Always start with the bootloader first
+    err = fopen_s(&iFile, g_bootloader, "rb");
+    if (err)
+    {
+        fprintf(stderr, "I/O Error: Could not open bootloader file '%s' for reading.\n", g_bootloader);
+        return -1;
+    }
+
+    sz = fsize(iFile);
+    if (sz <= 0)
+    {
+        fprintf(stderr, "I/O ERROR: Incorrect file size of %li\n", sz);
+        return 3;
+    }
+    size = static_cast<size_t>(sz);
 
     // Read and write per buffer till the output file has been filled
     for (offset = 0; offset < FLOPPY_SIZE; offset += BUFFER_SIZE)
@@ -36,7 +53,7 @@ int Raw_CopyData(FILE *oFile)
 
                 g_queue.pop();
 
-                long int sz = fsize(iFile);
+                sz = fsize(iFile);
                 if (sz <= 0)
                 {
                     fprintf(stderr, "I/O ERROR: Incorrect file size of %li\n", sz);

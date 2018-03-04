@@ -13,7 +13,7 @@
 /** Global variables */
 std::queue<FileArg> g_queue;    /* All the input files as given */
 char g_outputFile[MAX_PATH];    /* The output file path */
-char *g_bootloader = nullptr;   /* The bootloader file */
+char *g_bootloader;             /* The bootloader file */
 int g_filesystem;               /* The filesystem to use */
 
 
@@ -131,6 +131,7 @@ int procArguments(int argc, char **argv)
 /** Set the globals to their default values. */
 int setDefaults(void)
 {
+    g_bootloader = nullptr;
     g_filesystem = FS_FAT12;
     return strcpy_s(g_outputFile, MAX_PATH, "default.flp");
 }
@@ -173,21 +174,36 @@ int initialize(int argc, char **argv)
     if (argc < 3)
     {
         printUsage(argv[0]);
-        return 1;
+        return -1;
     }
 
     // Set the defaults
     if (setDefaults())
     {
         printf("Could set default values.\n");
-        return 1;
+        return -2;
     }
 
     // Process the arguments but skip the executable name
     if (procArguments(argc - 1, argv + 1))
     {
         printf("An error occured while processing the passed arguments.\n");
-        return 1;
+        return -3;
+    }
+
+    // If the bootloader was not specifically set take the first file
+    if (g_bootloader == nullptr)
+    {
+        if (g_queue.empty())
+        {
+            printf("No bootloader file specified; neither is there a file available to use as a bootloader.\n");
+            return -4;
+        }
+
+        // Set the bootloader and remove it from the queue
+        FileArg arg = g_queue.front();
+        g_bootloader = arg.filename;
+        g_queue.pop();
     }
 
     return 0;

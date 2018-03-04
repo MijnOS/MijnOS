@@ -21,8 +21,8 @@
 
 struct FileArg
 {
-    int attributes;         // Contains the file's desired attributes.
-    const char *filename;   // A pointer to the file's name.
+    int attributes;     // Contains the file's desired attributes.
+    char *filename;     // A pointer to the file's name.
 
     FileArg(void)
     {
@@ -30,7 +30,7 @@ struct FileArg
         filename = nullptr;
     }
 
-    FileArg(int a, const char *p)
+    FileArg(int a, char *p)
     {
         attributes = a;
         filename = p;
