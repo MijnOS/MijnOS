@@ -1,7 +1,3 @@
-/**
- * cmd.exe /k "C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\Tools\VsDevCmd.bat"
- * cl -W4 -O2 -EHsc overwrite.cpp
- */
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -101,7 +97,7 @@ int copyData(FILE *oFile)
             read = fread(buffer, 1, BUFFER_SIZE, iFile);
 
             // The filesize may be exactly that of a single buffer, hence we
-            // need to keep track of the size as this has to be check as well.
+            // need to keep track of the size as this has to be checked as well.
             size -= read;
 
             // We read to the end of the file
