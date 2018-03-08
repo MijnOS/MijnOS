@@ -11,7 +11,7 @@ global _functieASM
 ;===========
 _functieASM:
     push    ebp                     ; Preserve the stack pointer of the caller
-    mov 	ebp,esp                 ; This will be our stack pointer
+    mov     ebp,esp                 ; This will be our stack pointer
     sub     esp,4                   ; Reserve space for a DWORD
     mov     eax,dword [ebp+8]       ; Argument #1 - x
     mov     ecx,dword [ebp+0Ch]     ; Argument #2 - y
