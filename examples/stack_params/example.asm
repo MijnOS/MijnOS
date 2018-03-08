@@ -3,7 +3,7 @@
 ;===========
 ; Required by Microsoft's linker.
 ;===========
-SECTION .code align=16
+SECTION .text align=16
 global _functieASM
 
 ;===========
