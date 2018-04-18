@@ -78,6 +78,8 @@ const bool VERBOSE = true;
 #define NUM_FAT_ENTRIES     (FAT_SIZE / 3)
 #define NUMBER_OF_TRACKS    (TOTAL_SECTORS_FAT16 / SECTORS_PER_TRACK)
 #define DATA_SIZE           (DEVICE_SIZE - BYTES_PER_CLUSTER - (FAT_SIZE * NUMBER_OF_FAT))
+#define NUM_ROOT_CLUSTERS   ((MAX_ROOT_DIRECTORIES * 32) / BYTES_PER_CLUSTER)
+#define ENTRIES_PER_DIR     (BYTES_PER_CLUSTER / 32)
 
 
 /**
@@ -99,6 +101,29 @@ typedef struct Entry
     short           firstLogicalSector; /* First logical sector of the entry */
     int             size;               /* The size of the entry */
 } entry_t;
+
+
+// FAT entry types for next sector
+#define FAT_TYPE_UNUSED             ((char)(0x000))
+#define FAT_TYPE_RESERVED           ((char)(0xFF0))
+#define FAT_TYPE_BAD_CLUSTER        ((char)(0xFF7))
+#define FAT_TYPE_LAST_OF_FILE       ((char)(0xFFF))
+#define FAT_TYPE_VAR(var)           ((char)(var))
+
+// File Attribute Flags
+#define FAT_ATTRIB_READ_ONLY        ((char)(0x01))
+#define FAT_ATTRIB_HIDDEN           ((char)(0x02))
+#define FAT_ATTRIB_SYSTEM           ((char)(0x04))
+#define FAT_ATTRIB_VOLUME_LABEL     ((char)(0x08))
+#define FAT_ATTRIB_SUBDIRECTORY     ((char)(0x10))
+#define FAT_ATTRIB_ARCHIVE          ((char)(0x20))
+#define FAT_ATTRIB_LONGNAME         ((char)(0x0F))
+
+// File name flags
+#define FAT_FLAG_EMPTY              ((char)(0x00))  /* Indicates the entry is unused */
+#define FAT_FLAG_ERASED             ((char)(0xE5))  /* This indicates the entry was erased */
+#define FAT_FLAG_SPECIAL            ((char)(0x2E))  /* This denotes the current directory */
+#define FAT_FLAG_SWAPPED            ((char)(0x05))  /* The actual character is 0xE5 */
 
 
 /**
@@ -146,6 +171,7 @@ int OP_format(void);
 int OP_defragment(void);
 int OP_addFile(FILE *file, const char *path);
 int OP_searchFile(const char * name, void ** dest);
+int OP_convertToFileName(const char * in, char name[8], char ext[3]);
 
 
 /**
@@ -678,11 +704,244 @@ void FAT_setEntry(int index, int value)
 }
 
 
+/**
+ * Gets a pointer to the data based on the index from the FAT table.
+ * @param entryIndex The entry index from the FAT table.
+ * @return A pointer to the data of the entry.
+ */
+char * FAT_getDataPtr(int entryIndex)
+{
+    CASSERT(entryIndex >= 0x000 && entryIndex < 0xFF0, "entryIndex = 0x%03X", entryIndex);
+    int offset = ((33 + entryIndex - 2) * BYTES_PER_CLUSTER);
+    return (g_data + offset);
+}
+
+
+/**
+ * Searches for the first available cluster on the volume.
+ * @param logicalCluster The logical cluster value.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int FAT_findEmptyCluster(short *logicalCluster)
+{
+    short maxDataClusters = (DATA_SIZE / BYTES_PER_CLUSTER);
+
+    for (short i = 0; i < maxDataClusters; i++)
+    {
+        int index = FAT_getEntry(i);
+        if (index == 0)
+        {
+            *logicalCluster = i;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+
+/**
+ * Creates an entry in the FAT table. (DOES NOT ASSIGN A LOGICAL SECTOR!)
+ * @param entryIndex The index of the newly created entry.
+ * @param name The name to use for the entry.
+ * @param ext The extension to use for the entry.
+ * @param attribs The attributes for the entry. (aka ARCHIVE, DIRECTORY, etc.)
+ * @param data The data to write.
+ * @param size The size of the data.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int FAT_createFile(int *entryIndex, char name[8], char ext[3], char attribs, char *data, int size)
+{
+    int i;
+    char *dir = fat_data;
+
+    // Find the first empty index...
+    for (i = 0; i < MAX_ROOT_DIRECTORIES; i++)
+    {
+        // Only empty and erased can be written to
+        if (dir[0] == FAT_FLAG_EMPTY ||
+            dir[0] == FAT_FLAG_ERASED)
+        {
+            *entryIndex = i;
+            break;
+        }
+
+        dir += 32;
+    }
+
+    // There were no empty entries
+    if (i == MAX_ROOT_DIRECTORIES)
+    {
+        return -1;
+    }
+
+    // Determine the number of required clusters
+    int reqClusters = (size / BYTES_PER_CLUSTER);
+    if (size % BYTES_PER_CLUSTER)
+    {
+        // We need an extra cluster
+        reqClusters += 1;
+    }
+
+    int rem = size;
+    short cluster, firstCluster = -1, lastCluster = -1;
+
+    // Keep looping till we allocated all the clusters
+    for (i = 0; i < reqClusters; i++)
+    {
+        // Find the first empty cluster
+        if (FAT_findEmptyCluster(&cluster))
+        {
+            return -2;
+        }
+
+        // Store the first cluster
+        if (firstCluster == -1)
+        {
+            firstCluster = cluster;
+        }
+
+        // Link the clusters in the FAT table
+        if (lastCluster != -1)
+        {
+            FAT_setEntry(lastCluster, cluster);
+        }
+        lastCluster = cluster;
+
+        // Ensure the file always ends
+        FAT_setEntry(cluster, 0xFFF);
+
+        // Get the pointer to the cluster data
+        char *dataCluster = FAT_getDataPtr(cluster);
+
+        // Make it fit to all the buffers and write
+        int write = (rem >= BYTES_PER_CLUSTER) ? BYTES_PER_CLUSTER : rem;
+        memcpy(dataCluster, data, write);
+        data += write;
+        rem -= write;
+    }
+
+    // Store the file information
+    memcpy(dir, name, 8);
+    memcpy(dir + 8, ext, 3);
+    memcpy(dir + 11, &attribs, 1);
+    memcpy(dir + 26, &firstCluster, 2);
+    memcpy(dir + 28, &size, 4);
+
+    return 0;
+}
+
+
+/**
+ * Strips the data in a single directory.
+ * @param dir A pointer to the directory in memory.
+ * @param count The number of entries in the directory.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_stripDir(char *dir, int count)
+{
+    for (int i = 0; i < count; i++)
+    {
+        bool erase = false;
+
+        char *cur = (dir + (i * 32));
+        if (cur[0] == FAT_FLAG_ERASED)
+        {
+            // Previously erased and empty files can be stripped
+            erase = true;
+        }
+        else
+        {
+            // We need to check file attributes
+            if (cur[11] == FAT_ATTRIB_LONGNAME)
+            {
+                erase = true;
+            }
+        }
+
+        // Erase this entry
+        if (erase)
+        {
+            int offset = (i * 32);
+            char *dest = (dir + offset);
+            char *src = (dir + offset + 32);
+
+            for (int x = i+1; x < count; x++)
+            {
+                memcpy(dest, src, 32);
+                dest += 32;
+                src += 32;
+            }
+
+            // Clear the last entry
+            dest = (dir + (count-1) * 32);
+            memset(dest, 0, 32);
+
+            // Try this copy again
+            i--;
+        }
+    }
+
+    return 0;
+}
+
+
+/**
+ * Strips a directory and it's sub-directories.
+ * @param dir A pointer to the directory.
+ * @param numEntries The number of entries in the directory.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_stripVar(char *dir, int numEntries)
+{
+    int result;
+
+    CASSERT(numEntries == MAX_ROOT_DIRECTORIES || numEntries == ENTRIES_PER_DIR, "Invalid count...");
+
+    // First strip this directory
+    result = OP_stripDir(dir, numEntries);
+    if (result)
+    {
+        return result;
+    }
+
+    // Also strip sub-directories
+    for (int i = 0; i < numEntries; i++)
+    {
+        char *fileEntry = (dir + (i * 32));
+
+        // Skip the special directory entries
+        if (fileEntry[0] == FAT_FLAG_SPECIAL)
+        {
+            continue;
+        }
+
+        // The file entry is a sub-directory
+        if (fileEntry[11] & FAT_ATTRIB_SUBDIRECTORY)
+        {
+            short sector = *(reinterpret_cast<short*>(fileEntry + 26));
+            //int index = FAT_getEntry(sector);
+            char *data_p = FAT_getDataPtr(sector);
+            result = OP_stripVar(data_p, ENTRIES_PER_DIR);
+            if (result)
+            {
+                return result;
+            }
+        }
+    }
+
+    return 0;
+}
+
+
+/**
+ * Strips the volume of unused data.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
 int OP_strip(void)
 {
     CVERBOSE("OP: stripping...");
-
-    return -1;
+    return OP_stripVar(fat_data, MAX_ROOT_DIRECTORIES);
 }
 
 
@@ -696,7 +955,7 @@ int OP_format(void)
 
     // Clear the data, except the volume
     memset(fat_data + 32, 0, DATA_SIZE - 32);
-
+    
     // Clear all the FAT tables in one sweep
     memset(fat_table, 0, (NUMBER_OF_FAT * FAT_SIZE));
 
@@ -708,6 +967,10 @@ int OP_format(void)
 }
 
 
+/**
+ * Defragment the volume.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
 int OP_defragment(void)
 {
     CVERBOSE("OP: defragment...");
@@ -724,11 +987,241 @@ int OP_defragment(void)
  */
 int OP_addFile(FILE *file, const char *path)
 {
+    const char *sep0, *sep1;
+    char name[8], ext[3];
+
+    CVERBOSE("OP: adding '%s'...", path);
+   
+    // Get the path
+    sep0 = strrchr(path, '/');
+    sep1 = strrchr(path, '\\');
+
+    // Choose the seperator to use
+    if (sep1)
+    {
+        if (!sep0)
+        {
+            sep0 = sep1;
+        }
+        else
+        {
+            if (sep0 < sep1)
+            {
+                sep0 = sep1;
+            }
+        }
+    }
+
+    // If there is a seperator we will replace the path
+    if (sep0)
+    {
+        OP_convertToFileName(sep0 + 1, name, ext);
+    }
+    else
+    {
+        OP_convertToFileName(path, name, ext);
+    }
+
+    CVERBOSE("Writing '%s' to '%.8s'.'%.3s'", path, name, ext);
+
+    // Get the file size
+    fseek(file, 0, SEEK_END);
+    long int size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    // Ensure we're still error free
+    CASSERT(ferror(file) == 0, "Could not determine the file size of '%s'", path);
+
+    char *fileData = new char[size];
+    if (!fileData)
+    {
+        return -1;
+    }
+
+    size_t read = fread(fileData, 1, size, file);
+    CASSERT(ferror(file) == 0, "Could not read from '%s'", path);
+    if (read != size)
+    {
+        return -2;
+    }
+
+    int entryIndex;
+    int result = FAT_createFile(&entryIndex, name, ext, FAT_ATTRIB_ARCHIVE, fileData, size);
+
+    delete[] fileData;
+    return result;
+}
+
+
+/**
+ * Get the name of the file from a file entry.
+ * @param entry The entry to get the name of.
+ * @param name The name of the file.
+ * @param ext The extension of the file.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_getEntryFileName(char *entry, char name[8], char ext[3])
+{
+    memcpy(name, entry, 8);
+    memcpy(ext, entry + 8, 3);
+    return 0;
+}
+
+
+/**
+ * Searches for a file with the matching name in the given directory.
+ * @param dir The directory to search in.
+ * @param name The name of the file.
+ * @param match The destination to the store a pointer to the file's entry.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_searchFileInDir(char *dir, const char *name, char **match)
+{
+    char lName[8], lExt[3];
+    char eName[8], eExt[3];
+
+    // Convert the inputted name into FAT format.
+    OP_convertToFileName(name, lName, lExt);
+
+    // Loop over all the entries in the directory
+    for (int i = 0; i < ENTRIES_PER_DIR; i++)
+    {
+        char *entry = (dir + (i * 32));
+        OP_getEntryFileName(entry, eName, eExt);
+
+        // We found a match
+        if (!memcmp(lName, eName, 8) && !memcmp(lExt, eExt, 3))
+        {
+            *match = entry;
+            return 0;
+        }
+    }
+
     return -1;
 }
 
 
-int OP_searchFile(const char * name, void ** dest)
+/**
+ * Searches for a file with the matching name on the entire volume.
+ * @param name The name of the file.
+ * @param dest The destination to the store a pointer to the file's entry.
+ * @param n The number of files matching the name.
+ * @return Zero if succcessful; otherwise, a non-zero value.
+ */
+int OP_searchFile(const char *name, void **dest, int *n)
 {
     return -1;
+}
+
+
+/**
+ * Converts the input string into a valid FAT output string.
+ * @param dest The destination to put the output string.
+ * @param destSize The maximum number of characters to write.
+ * @param src The string to convert.
+ * @param srcSource The number of available characters.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_toValidString(char *dest, size_t destSize, const char *src, size_t srcSize)
+{
+    for (int i = 0; i < srcSize; i++)
+    {
+        char cur = src[i];
+
+        // Convert to uppercase
+        if (cur >= 'a' && cur <= 'z')
+        {
+            cur -= ('a' - 'A');
+        }
+
+        // Copy range
+        if ((cur >= 'A' && cur <= 'Z') ||
+            (cur >= '0' && cur <= '0'))
+        {
+            *dest = cur;
+            dest++;
+            destSize--;
+        }
+
+        // Individual
+        else if (
+            cur == '\'' ||
+            cur == ' ' ||
+            cur == '!' ||
+            cur == '#' ||
+            cur == '$' ||
+            cur == '%' ||
+            cur == '&' ||
+            cur == '(' ||
+            cur == ')' ||
+            cur == '-' ||
+            cur == '@' ||
+            cur == '^' ||
+            cur == '_' ||
+            cur == '`' ||
+            cur == '{' ||
+            cur == '}' ||
+            cur == '~')
+        {
+            *dest = cur;
+            dest++;
+            destSize--;
+        }
+
+        // Reached the limit
+        if (destSize == 0)
+        {
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+
+/**
+ * Converts the input string into a valid file name.
+ * @param in The input string.
+ * @param name The name of the file.
+ * @param ext The extension of the file.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_convertToFileName(const char * in, char name[8], char ext[3])
+{
+    size_t len;
+    const char *period;
+
+    // Clear both fields
+    memset(name, 0x20, 8);
+    memset(ext, 0x20, 3);
+    
+    // Determine the extension
+    period = strrchr(in, '.');
+    if (period)
+    {
+        OP_toValidString(ext, 3, period + 1, strlen(period + 1));
+        len = (period - in);
+    }
+    else
+    {
+        len = strlen(in);
+    }
+
+    // Copy the file name
+    OP_toValidString(name, 8, in, len);
+
+    return -1;
+}
+
+/**
+ * Ensures the name is unique within the directory.
+ * @param dir The directory containing the file.
+ * @param in The input file name.
+ * @param name The name of the file.
+ * @param ext The extension of the file.
+ * @return Zero if successful; otherwise, a non-zero value.
+ */
+int OP_toUniqueName(char *dir, char *in, char name[8], char ext[3])
+{
+    return OP_convertToFileName(in, name, ext);
 }
