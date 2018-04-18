@@ -36,3 +36,4 @@
 *.flp
 !docs/msdos.flp
 *.log
+*.bak
