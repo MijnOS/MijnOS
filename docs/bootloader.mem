@@ -2,4 +2,4 @@
 [07E0:0000] bootloader stack
 [0800:0000] FAT table
 [0920:0000] Root directory
-[0AE0:0000]
+[0AE0:0000] Kernel

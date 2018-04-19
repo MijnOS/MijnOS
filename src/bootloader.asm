@@ -2,6 +2,12 @@
     jmp near bootstrap
 
 
+%define SEG_BOOTLOADER  07C0h                   ; NOTE: Bootloader is always at this address and 512-bytes in size
+%define SEG_BOOT_STACK  07E0h                   ; NOTE: The stack works in reverse but starts after the bootloader
+%define SEG_FAT_TABLE   0800h
+%define SEG_ROOT_DIR    0920h
+%define SEG_KERNEL      0AE0h
+
 
 ; BPB
 OEMId                   db 'MijnOS_0'           ; OEM identifier
@@ -32,33 +38,34 @@ FileSystemType          db 'FAT12   '           ; File system type
 ; BOOTSTRAP (448-bytes)
 ;===========
 bootstrap:
-    mov     ax,07C0h
+    mov     ax,SEG_BOOTLOADER
     mov     ds,ax                               ; Set data segment to where we're loaded
     mov     es,ax
-    add     ax,20h                              ; Skip over the bootloader
+    mov     ax,SEG_BOOT_STACK                   ; Skip over the bootloader
     mov     ss,ax
     mov     sp,200h                             ; Set up a 512 bytes stack after the bootloader
 
     call    load_fat                            ; Loads the FAT table into memory
     call    load_root                           ; Loads the root directory into memory, and immediately searches for the kernel
-    call    load_kernel                         ; Loads the kernel into memory
+    ;call    load_kernel                         ; Loads the kernel into memory
 
-    mov     si,str_done
-    call    print_string
     jmp     $
-
 
 reboot:
     mov     si,str_error
     call    print_string
-    mov     ax,0
-    int     19h
+    mov     ax,word [dbg_error]
+    call    print_hex
+    ;mov     ax,0
+    ;int     19h
     jmp     $
 
 
 
 ;===============================================
 ; Sets the registers necessary for loading from disk.
+;   In: ax
+;   Out: ax, ch, cl, dh, cl
 ;===============================================
 setLoadRegisters:
     push    bx
@@ -93,7 +100,7 @@ load_fat:
     call    setLoadRegisters
 
     ; [ES:BX]
-    mov     si,0800h                            ; Set the pointer to the FAT table buffer
+    mov     si,SEG_FAT_TABLE                    ; Set the pointer to the FAT table buffer
     mov     es,si
     xor     bx,bx
 
@@ -102,8 +109,10 @@ load_fat:
 
     stc
     int     13h                                 ; Read the sectors into the buffer
+    mov     word [dbg_error],1
     jc      reboot                              ; An error occured
     cmp     al,9
+    mov     word [dbg_error],2
     jne     reboot                              ; Not enough sectors were read
     ret
 
@@ -117,7 +126,7 @@ load_root:
     call    setLoadRegisters
 
     ; [ES:BX]
-    mov     si,0920h                            ; Set the pointer to the buffer
+    mov     si,SEG_ROOT_DIR                     ; Set the pointer to the buffer
     mov     es,si
     xor     bx,bx
 
@@ -126,8 +135,10 @@ load_root:
 
     stc
     int     13h                                 ; Read the sectors into memory
+    mov     word [dbg_error],3
     jc      reboot                              ; An error occured
     cmp     al,14
+    mov     word [dbg_error],4
     jne     reboot                              ; Not enough sectors were read
     jmp     search_kernel
 
@@ -154,26 +165,77 @@ search_kernel:
     loop    .loop
 
 .not_found:
+    mov     word [dbg_error],5
     jmp     reboot
 
 .found:
     mov     ax,word [es:bx+1Ah]                 ; Logical sector ID
-    ret
-
+    mov     word [kernel_cluster],ax            ; Store the cluster number
+    jmp     load_file_sector
 
 
 ;===============================================
-; Search through the root directory.
+; Loads the specific sector of a file.
 ;===============================================
-load_kernel:
-    mov     bx,ax
-    
-    mov     bx,es
-    add     bx,20h
-    mov     es,bx
+load_file_sector:
+    mov     ax,word [kernel_cluster]
+    add     ax,31                               ; This is FAT12 specific
+    call    setLoadRegisters
 
-    ret
+    mov     si,SEG_KERNEL
+    mov     es,si
+    mov     bx,word [kernel_pointer]            ; Current offset in the kernel segment to write to
 
+    mov     ah,2
+    mov     al,1
+
+    stc
+    int     13h
+    mov     word [dbg_error],6
+    jc      reboot
+    cmp     al,1
+    mov     word [dbg_error],7
+    jne     reboot
+
+
+;===============================================
+; Tries to load the next cluster of the kernel.
+;===============================================
+load_next_cluster:
+    mov     ax,word [kernel_cluster]            ; Take the logical id of the cluster that has been read
+    mov     dx,0
+    mov     bx,3
+    mul     bx                                  ; dx:ax = ax * bx
+    mov     bx,2                                ; dx = (ax % bx)
+    div     bx                                  ; ax = (ax / bx)
+
+    mov     si,SEG_FAT_TABLE                    ; The next cluster info resides in the FAT table
+    mov     ds,si
+    mov     si,ax                               ; The offset has been calculated
+    mov     ax,word [ds:si]                     ; Take the next cluster information
+
+    test    dx,dx
+    je      .even
+
+.odd:
+    shr     ax,4
+    jmp     .continue
+
+.even:
+    and     ax,0FFFh
+
+.continue:
+    mov     word [kernel_cluster],ax            ; Store the logical id of the next cluster
+
+    cmp     ax,0FF8h                            ; 0FF8h and higher indicate end-of-file
+    jae     .boot_kernel
+
+    add     word [kernel_pointer],512           ; Sectors are 512 bytes in size, so read
+    jmp     load_file_sector                    ;  the next one behind the current one
+
+
+.boot_kernel:                                   ; Jumps to the kernel code
+    jmp     SEG_KERNEL:0000h
 
 
 ;===============================================
@@ -193,7 +255,6 @@ print_string:
 .done:
     popa
     ret
-
 
 
 ;===============================================
@@ -225,18 +286,16 @@ print_hex:
     ret
 
 
-
 ;===========
 ; VARIABLES
 ;===========
 kernel_cluster          dw -1                   ; Current targeted sector to load for the kernel
+kernel_pointer          dw 0                    ; Current offset within the segment
 kernel_name             db 'KERNEL  BIN'        ; Name of the kernel file as saved on the FAT12 volume
 
-; TODO: strip the following
-str_boot                db 'Booting',0
-str_done                db 'Done',0
-str_error               db 'Error',0
-
+; DEBUG
+str_error               db 'Error ',0
+dbg_error               dw 0FFFFh
 
 
 ;===========
