@@ -18,6 +18,7 @@ int Raw_CopyData(FILE *oFile)
     iFile = FS_OpenBootloader(&size);
     if (iFile == NULL)
     {
+        fprintf(stderr, "I/O ERROR: A.\n");
         return -1;
     }
 
@@ -30,6 +31,7 @@ int Raw_CopyData(FILE *oFile)
             iFile = FS_OpenNextFile(&size, NULL);
             if (!iFile)
             {
+                fprintf(stderr, "I/O ERROR: A.\n");
                 return -1;
             }
         }

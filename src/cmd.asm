@@ -2,17 +2,10 @@
 
 
 ;===============================================
-; Entry point of the kernel module.
+; Entry point
 ;===============================================
-kernel:
-    mov     ax,cs
-    mov     ds,ax
-    mov     es,ax
-    add     ax,32
-    mov     ss,ax
-    mov     sp,4096
-
-    mov     si,msg_success
+cmd:
+    mov     si,msg_cmd
     call    print
 
     jmp     $
@@ -38,4 +31,4 @@ print:
 ;===========
 ; STRINGS
 ;===========
-msg_success db "Kernel reports 0 errors." ,0Dh,0Ah,0
+msg_cmd     db "CMD" ,0Dh,0Ah,0

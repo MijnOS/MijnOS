@@ -1,5 +1,6 @@
 #include <cstddef>
 #include <cstdio>
+#include <cassert>
 #include "utility.hpp"
 #include "globals.hpp"
 #include "io.hpp"
@@ -33,6 +34,8 @@ FILE* FS_OpenBootloader(size_t *size)
         return NULL;
     }
     *size = static_cast<size_t>(sz);
+
+    assert(iFile != NULL);
 
     return iFile;
 }

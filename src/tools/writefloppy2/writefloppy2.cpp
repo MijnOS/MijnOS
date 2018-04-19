@@ -30,7 +30,7 @@ typedef unsigned long long int qword;
 #define MAX_PATH    260 /* Windows default is 260 */
 #endif
 
-const bool VERBOSE = true;
+const bool VERBOSE = false;
 
 #define CINFO(fmt, ...)     fprintf(stdout, fmt"\n", ##__VA_ARGS__)
 #define CWARN(fmt, ...)     fprintf(stdout, "WARNING: "fmt"\n", ##__VA_ARGS__)
@@ -334,7 +334,7 @@ void printUsage(char *lpExeName)
  */
 int initialize(int argc, char **argv)
 {
-    CVERBOSE("Initializing...");
+    CINFO("Initializing...");
 
     if (argc < 3)
     {
@@ -515,6 +515,8 @@ int FAT_load(FILE *file)
     // we will overwrite the read boot sector.
     if (g_bootSector[0] != '\0')
     {
+        CINFO("Loading bootsector from '%s'.", g_bootSector);
+
         result = readFile(g_bootSector, g_data, 512);
         if (result)
         {
@@ -548,7 +550,7 @@ int FAT_save(FILE *file)
 {
     size_t written;
 
-    CVERBOSE("Writing image file...");
+    CINFO("Writing image file...");
 
     written = fwrite(g_data, 1, DEVICE_SIZE, file);
     CASSERT(ferror(file) == 0, "An error occured whilst writing to '%s'", g_pathOut);
@@ -1022,7 +1024,7 @@ int OP_addFile(FILE *file, const char *path)
         OP_convertToFileName(path, name, ext);
     }
 
-    CVERBOSE("Writing '%s' to '%.8s'.'%.3s'", path, name, ext);
+    CINFO("Writing '%s' to '%.8s'.'%.3s'", path, name, ext);
 
     // Get the file size
     fseek(file, 0, SEEK_END);
@@ -1124,7 +1126,7 @@ int OP_searchFile(const char *name, void **dest, int *n)
  */
 int OP_toValidString(char *dest, size_t destSize, const char *src, size_t srcSize)
 {
-    for (int i = 0; i < srcSize; i++)
+    for (size_t i = 0; i < srcSize; i++)
     {
         char cur = src[i];
 

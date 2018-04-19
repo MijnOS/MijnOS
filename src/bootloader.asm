@@ -49,7 +49,7 @@ bootstrap:
     call    load_root                           ; Loads the root directory into memory, and immediately searches for the kernel
     ;call    load_kernel                         ; Loads the kernel into memory
 
-    jmp     $
+    jmp     $                                   ; If the kernel falls through, the system will hang
 
 reboot:
     mov     si,str_error
@@ -174,6 +174,7 @@ search_kernel:
     jmp     load_file_sector
 
 
+
 ;===============================================
 ; Loads the specific sector of a file.
 ;===============================================
@@ -196,6 +197,7 @@ load_file_sector:
     cmp     al,1
     mov     word [dbg_error],7
     jne     reboot
+
 
 
 ;===============================================
@@ -238,6 +240,7 @@ load_next_cluster:
     jmp     SEG_KERNEL:0000h
 
 
+
 ;===============================================
 ; Prints a random string to the screen.
 ;===============================================
@@ -255,6 +258,7 @@ print_string:
 .done:
     popa
     ret
+
 
 
 ;===============================================
@@ -284,6 +288,7 @@ print_hex:
 .done:
     popa
     ret
+
 
 
 ;===========

@@ -5,13 +5,20 @@ CFLAGS = -nologo -MD -W3 -O2 -EHsc
 WFLAGS = -DNDEBUG
 ASFLAGS = -f bin
 
-OBJS = kernel.bin
+OBJS = kernel.bin cmd.bin
+OBJA = src\tools\writefloppy\io.cpp src\tools\writefloppy\utility.cpp src\tools\writefloppy\fs_raw.cpp src\tools\writefloppy\fs_fat12.cpp src\tools\writefloppy\main.cpp
 
 all: writefloppy2.exe image
 
 image: bootloader.bin $(OBJS)
     bin\writefloppy2.exe -f -w bin -i msdos.bak -o bootdevice.flp -b bootloader.bin $(OBJS)
-	
+
+x86: x86.bin
+    bin\writefloppy2.exe -f -w bin -i msdos.bak -o bootdevice.flp -b x86.bin
+
+writefloppy.exe:
+    $(CC) $(CFLAGS) $(WFLAGS) $(OBJA) /link -out:bin\writefloppy.exe
+
 writefloppy2.exe:
     $(CC) $(CFLAGS) $(WFLAGS) src\tools\writefloppy2\writefloppy2.cpp /link -out:bin\writefloppy2.exe
 
@@ -20,6 +27,15 @@ bootloader.bin:
 
 kernel.bin:
     $(AS) $(ASFLAGS) -o bin\kernel.bin src\kernel.asm 
+
+cmd.bin:
+    $(AS) $(ASFLAGS) -o bin\cmd.bin src\cmd.asm 
+
+classic: writefloppy.exe x86.bin
+    bin\writefloppy.exe -d bin -b x86.bin -o boot.flp
+
+x86.bin:
+    $(AS) $(ASFLAGS) -o bin\x86.bin src\x86.asm 
 
 clean:
     -del /S *.obj
