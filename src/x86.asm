@@ -34,7 +34,7 @@ stage2:
     or      eax,1
     mov     cr0,eax
 
-    ; Jump to code to run in Protected Mode
+    ; Jump to the code to run in Protected Mode
     jmp     GDT_CODE:pmode
 
  
@@ -49,10 +49,15 @@ pmode:
     mov     gs,ax
     mov     esp,10000h
 
-    ; Test - Correct as it is not allowed
-    ;mov     ah,0Eh
-    ;mov     al,41h      ; 'A'
-    ;int     10h
+    ; Test
+    ;   - Should not be allowed without an IDT.
+    ;   - Should call our ISR with an IDT.
+    mov     ah,0Eh
+    mov     al,41h      ; 'A'
+    int     10h
+    mov     ah,0Eh
+    mov     al,42h      ; 'B'
+    int     10h
 
     jmp     $
 
@@ -290,53 +295,59 @@ idt_start:
         dw  0
 
     idt_int1A:
-        dw  isr1A
+        ;dw  isr1A
+        dw  isr00
         dw  GDT_CODE
         db  0
         db  0b10001110
         dw  0
 
     idt_int1B:
-        dw  isr1B
+        ;dw  isr1B
+        dw  isr00
         dw  GDT_CODE
         db  0
         db  0b10001110
         dw  0
 
     idt_int1C:
-        dw  isr1C
+        ;dw  isr1C
+        dw  isr00
         dw  GDT_CODE
         db  0
         db  0b10001110
         dw  0
 
     idt_int1D:
-        dw  isr1D
+        ;dw  isr1D
+        dw  isr00
         dw  GDT_CODE
         db  0
         db  0b10001110
         dw  0
 
     idt_int1E:
-        dw  isr1E
+        ;dw  isr1E
+        dw  isr00
         dw  GDT_CODE
         db  0
         db  0b10001110
         dw  0
 
     idt_int1F:
-        dw  isr1F
+        ;dw  isr1F
+        dw  isr00
         dw  GDT_CODE
         db  0
         db  0b10001110
         dw  0
 
-    idt_int20:
-        dw  isr20
-        dw  GDT_CODE
-        db  0
-        db  0b10001110
-        dw  0
+;    idt_int20:
+;        dw  isr20
+;        dw  GDT_CODE
+;        db  0
+;        db  0b10001110
+;        dw  0
 
 idt_end:
 
@@ -446,7 +457,44 @@ isr0F:
 
 isr10:
     pusha
+
+    xor     ecx,ecx
+
+    ; Get the lower byte offset
+    mov     dx,03D4h                            ; 03D4h = Set / 03D5h = Get
+    mov     al,0Fh      ; Cursor offset
+    out     dx,al
+    mov     dx,03D5h    ; I/O port
+    in      al,dx
+
+    ; Get the higher byte offset
+    mov     dx,03D4h
+    mov     al,0Eh      ; Cursor offset
+    out     dx,al
+    mov     dx,03D5h
+    in      al,dx
+;
+;    ; Get the address
+;    ;shl     ax,2
+;    ;movzx   eax,ax
+;    imul    ax,2
+
+
     ; interrupt handler for idt_int10
+    ;mov     ah,0Eh
+    ;mov     al,41h      ; 'A'
+    ;int     10h
+    ;mov     ebx,0B8000h ; Video memory address
+;    mov     ebx,0B8002h ; Video memory address
+;    mov     al,cl
+;    mov     ah,0Fh      ; The color
+;    mov     word [ebx],ax
+
+    xor     eax,eax
+
+    mov     ebx,0B80A0h
+    mov     dword [ebx],07690748h               ; 25 rows / 80 columns
+
     popa
     iret
 
@@ -504,47 +552,47 @@ isr19:
     popa
     iret
 
-isr1A:
-    pusha
-    ; interrupt handler for idt_int1A
-    popa
-    iret
+;isr1A:
+;    pusha
+;    ; interrupt handler for idt_int1A
+;    popa
+;    iret
 
-isr1B:
-    pusha
-    ; interrupt handler for idt_int1B
-    popa
-    iret
+;isr1B:
+;    pusha
+;    ; interrupt handler for idt_int1B
+;    popa
+;    iret
 
-isr1C:
-    pusha
-    ; interrupt handler for idt_int1C
-    popa
-    iret
+;isr1C:
+;    pusha
+;    ; interrupt handler for idt_int1C
+;    popa
+;    iret
 
-isr1D:
-    pusha
-    ; interrupt handler for idt_int1D
-    popa
-    iret
+;isr1D:
+;    pusha
+;    ; interrupt handler for idt_int1D
+;    popa
+;    iret
 
-isr1E:
-    pusha
-    ; interrupt handler for idt_int1E
-    popa
-    iret
+;isr1E:
+;    pusha
+;    ; interrupt handler for idt_int1E
+;    popa
+;    iret
 
-isr1F:
-    pusha
-    ; interrupt handler for idt_int1F
-    popa
-    iret
+;isr1F:
+;    pusha
+;    ; interrupt handler for idt_int1F
+;    popa
+;    iret
 
-isr20:
-    pusha
-    ; interrupt handler for idt_int20
-    popa
-    iret
+;isr20:
+;    pusha
+;    ; interrupt handler for idt_int20
+;    popa
+;    iret
 
 ;===========
 ; BOOT SIG (2-bytes)
