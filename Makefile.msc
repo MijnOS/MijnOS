@@ -14,13 +14,16 @@ image: bootloader.bin $(OBJS)
     bin\writefloppy2.exe -f -w bin -i msdos.bak -o bootdevice.flp -b bootloader.bin $(OBJS)
 
 x86: x86.bin
-    bin\writefloppy2.exe -f -w bin -i msdos.bak -o bootdevice.flp -b x86.bin
+    bin\writeraw.exe -w bin -o bootdevice.flp x86.bin
 
-writefloppy.exe:
+writefloppy:
     $(CC) $(CFLAGS) $(WFLAGS) $(OBJA) /link -out:bin\writefloppy.exe
 
-writefloppy2.exe:
+writefloppy2:
     $(CC) $(CFLAGS) $(WFLAGS) src\tools\writefloppy2\writefloppy2.cpp /link -out:bin\writefloppy2.exe
+
+writeraw:
+    $(CC) $(CFLAGS) $(WFLAGS) src\tools\writefloppy2\writeraw.cpp /link -out:bin\writeraw.exe
 
 bootloader.bin:
     $(AS) $(ASFLAGS) -o bin\bootloader.bin src\bootloader.asm 
