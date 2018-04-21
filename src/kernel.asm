@@ -39,3 +39,6 @@ print:
 ; STRINGS
 ;===========
 msg_success db "Kernel reports 0 errors." ,0Dh,0Ah,0
+
+
+%include "src/kernel/fat12.inc"
