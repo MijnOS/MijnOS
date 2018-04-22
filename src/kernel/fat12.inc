@@ -144,11 +144,11 @@ fat_loadFile:
 
 
 ;===============================================
-; N/A
+; Searches for and copies the found entry.
 ;   In:
-;     si - The name of the entry.
-;     di - The destination to copy the entry
-;          information to. (sizeof == 32)
+;     ds:si - The name of the entry.
+;     es:di - The destination to copy the entry
+;             information to. (sizeof == 32)
 ;   Out:
 ;     ax - Zero if found; otherwise, non-zero.
 ;===============================================
@@ -158,7 +158,10 @@ fat_searchEntry:
     sub     sp,8
     sub     sp,word [iFAT_BytesPerSector]
     pusha
+    push    es
     push    di
+    mov     bx,ss
+    mov     es,bx
 
     mov     ax,word [iFAT_BytesPerSector]
     shr     ax,5
@@ -175,8 +178,17 @@ fat_searchEntry:
     sub     ax,8
     mov     di,ax                               ; void * sector // Location to store the read sector
 
+    push    es
+    push    bx
+    mov     bx,ss
+    mov     es,bx
+
     mov     ax,word [bp-4]
     call    fat_loadRootSector
+
+    pop     bx
+    pop     es
+
     test    ax,ax
     jne     .error
 
@@ -207,6 +219,7 @@ fat_searchEntry:
 
 .error:
     pop     di
+    pop     es
     popa
     mov     ax,1                                ; return 1
     mov     sp,bp
@@ -214,12 +227,34 @@ fat_searchEntry:
     ret
 
 .copy:
-    pop     di
-    mov     cx,16
-    cld
-    rep movsw                                   ; Copies the matching entry to the destination
+    ;push    ds
+    ;push    bx
+    ;mov     bx,ss
+    ;mov     ds,bx
+    ;mov     ax,word [di]
+    ;call    print_hex
+    ;pop     bx
+    ;pop     ds
+
+    push    si
+
+    mov     cx,di       ; start of entry
+    mov     si,cx
+    pop     di          ; destination to copy to
+    mov     cx,32       ; 32-bytes
+
+    push    ds
+    push    bx
+    mov     bx,ss
+    mov     ds,bx
+    rep movsb
+    pop     bx
+    pop     ds
+
+    pop     si
 
 .return:
+    pop     es
     popa
     xor     ax,ax                               ; return 0
     mov     sp,bp
@@ -232,7 +267,7 @@ fat_searchEntry:
 ; Loads a FAT root sector
 ;   In:
 ;     ax - The offset within the root sector. [0, 14)
-;     di - The destination to load the sector to.
+;     es:di - The destination to load the sector to.
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
@@ -272,8 +307,8 @@ fat_loadRootSector:
 ; Converts the input string into a valid FAT
 ; string, consisting of only letters and digits.
 ;   In:
-;     si - char * src
-;     di - char * dest
+;     ds:si - char * src
+;     es:di - char * dest
 ;   Out:
 ;     N/A
 ;===============================================
@@ -282,7 +317,7 @@ fat_sanitize:
     push    di
 
 .loop:
-    mov     al,byte [si]
+    mov     al,byte [ds:si]
     cmp     al,0                                ; string-terminator
     je      .return
     
@@ -308,7 +343,7 @@ fat_sanitize:
     ;jmp     .valid
 
 .valid:
-    mov     byte [di],al
+    mov     byte [es:di],al
     inc     di
 
 .continue:
@@ -316,7 +351,7 @@ fat_sanitize:
     jmp     .loop
 
 .return:
-    mov     byte [di],0                         ; Always appaend a string-terminator
+    mov     byte [es:di],0                      ; Always appaend a string-terminator
     pop     di
     pop     si
     ret
@@ -325,30 +360,33 @@ fat_sanitize:
 ;===============================================
 ; Compares two FAT name compliant strings.
 ;   In:
-;     si - char * str0
-;     di - char * str1
+;     ds:si - char * str0
+;     es:di - char * str1
 ;     cx - short num
 ;   Out:
 ;     ax - Zero if a match; otherwise, one.
 ;===============================================
 fat_strcmp:
-    push    bx
-    mov     bx,cx
+    push    di
+    push    si
+    push    cx
 
 .loop:
-    dec     bx
+    dec     cx
 
-    mov     al,byte [si+bx]
-    cmp     al,byte [di+bx] ; *s0 != *s1        ; <NOT EQUAL>
+    mov     al,byte [ds:si]
+    cmp     al,byte [es:di]     ; *s0 != *s1    ; <NOT EQUAL>
     jne     .mismatch
 
-    cmp     al,0            ; *s0 == '\0'       ; <EQUAL> string terminator
+    cmp     al,0                ; *s0 == '\0'   ; <EQUAL> string terminator
     je      .match
 
-    cmp     al,20h          ; *s0 == ' '        ; <EQUAL> end-of-string
+    cmp     al,20h              ; *s0 == ' '    ; <EQUAL> end-of-string
     je      .match
 
-    cmp     bx,0
+    inc     di
+    inc     si
+    cmp     cx,0
     jne     .loop
     ;jmp    .match                              ; <EQUAL> no special characters
 
@@ -360,9 +398,10 @@ fat_strcmp:
     mov     ax,1
     
 .return:
-    pop     bx
+    pop     cx
+    pop     si
+    pop     di
     ret
-
 
 
 ;===============================================

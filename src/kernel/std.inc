@@ -1,8 +1,9 @@
 
 ;===============================================
 ; Prints a random string to the screen.
+;   void print( const char * str )
 ;===============================================
-print_string:
+print:
     pusha
     mov     ah,0Eh
 
@@ -18,9 +19,9 @@ print_string:
     ret
 
 
-
 ;===============================================
 ; Prints a new line.
+;   void print( void )
 ;===============================================
 print_newline:
     push    ax
@@ -35,6 +36,7 @@ print_newline:
 
 ;===============================================
 ; Prints a HEX byte onto the screen.
+;   void print( WORD hex )
 ;===============================================
 print_hex:
     pusha
@@ -88,3 +90,4 @@ print_hex:
 .done:
     popa
     ret
+
