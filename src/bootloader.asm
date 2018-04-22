@@ -197,7 +197,7 @@ load_file_sector:
     cmp     al,1
     mov     word [dbg_error],7
     jne     reboot
-
+    jmp     load_next_cluster
 
 
 ;===============================================
@@ -212,9 +212,9 @@ load_next_cluster:
     div     bx                                  ; ax = (ax / bx)
 
     mov     si,SEG_FAT_TABLE                    ; The next cluster info resides in the FAT table
-    mov     ds,si
+    mov     es,si
     mov     si,ax                               ; The offset has been calculated
-    mov     ax,word [ds:si]                     ; Take the next cluster information
+    mov     ax,word [es:si]                     ; Take the next cluster information
 
     test    dx,dx
     je      .even
@@ -237,6 +237,13 @@ load_next_cluster:
 
 
 .boot_kernel:                                   ; Jumps to the kernel code
+    mov     word [dbg_error],8
+    mov     si,SEG_KERNEL
+    mov     es,si
+    xor     bx,bx
+    movzx   ax,byte [es:bx]
+    cmp     ax,8Ch                              ; If not it has been overwritten or wrongly read
+    jne     reboot
     jmp     SEG_KERNEL:0000h
 
 
@@ -300,6 +307,7 @@ kernel_name             db 'KERNEL  BIN'        ; Name of the kernel file as sav
 
 ; DEBUG
 str_error               db 'Error ',0
+str_jump                db 'JMP',0
 dbg_error               dw 0FFFFh
 
 
