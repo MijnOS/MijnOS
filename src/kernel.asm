@@ -11,12 +11,16 @@ kernel:
     mov     es,ax
     add     ax,100h     ; 4096 - Means the kernel may be up to 4096-bytes in size
     mov     ss,ax
-    mov     sp,4000h    ; 16kb - This is the available stack space
+    mov     sp,8000h    ; 32kb - This is the available stack space
 
     mov     si,msg_success
     call    print
 
     call    test_sant
+    call    print_newline
+
+    call    test_search
+    call    print_newline
 
     jmp     $
 
@@ -63,4 +67,44 @@ test_sant:
     pop     bp
     ret
 
+
+file_cmd    db 'CMD     BIN' 
+cmd_found   db 'CMD found', 0Dh, 0Ah, 0
+cmd_nfound  db 'CMD not found', 0Dh, 0Ah, 0
+
+
+test_search:
+    push    bp
+    mov     bp,sp
+    sub     sp,32       ; Will hold our FAT entry
+
+    lea     di,[bp-32]
+    mov     si,file_cmd
+    call    fat_searchEntry
+    test    ax,ax
+    jne     .not_found
+
+    mov     si,cmd_found
+    call    print
+    call    print_newline
+
+    mov     ax,word [bp-6]
+    call    print_hex
+    call    print_newline
+
+    jmp     .return
+
+
+.not_found:
+    mov     si,cmd_nfound
+    call    print
+
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+%include "src/kernel/string.inc"
 %include "src/kernel/fat12.inc"

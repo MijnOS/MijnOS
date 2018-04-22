@@ -153,6 +153,77 @@ fat_loadFile:
 ;     ax - Zero if found; otherwise, non-zero.
 ;===============================================
 fat_searchEntry:
+    push    bp
+    mov     bp,sp
+    sub     sp,8
+    sub     sp,word [iFAT_BytesPerSector]
+    pusha
+    push    di
+
+    mov     ax,word [iFAT_BytesPerSector]
+    shr     ax,5
+    mov     word [bp-6],ax                      ; WORD entriesPerSector
+    mov     word [bp-8],0                       ; WORD entriesIndex
+
+    call    fat_getSizeRoot
+    mov     word [bp-2],ax                      ; WORD rootSize
+    mov     word [bp-4],0                       ; WORD rootIndex
+
+.loadSector:
+    lea     ax,[bp]
+    sub     ax,word [iFAT_BytesPerSector]
+    sub     ax,8
+    mov     di,ax                               ; void * sector // Location to store the read sector
+
+    mov     ax,word [bp-4]
+    call    fat_loadRootSector
+    test    ax,ax
+    jne     .error
+
+    lea     dx,[bp]
+    sub     dx,word [iFAT_BytesPerSector]
+    sub     dx,8                                ; dx now points to the first entry of the loaded sector
+
+.search:
+    mov     cx,11                               ; name + extension
+    mov     di,dx
+    call    fat_strcmp
+    test    ax,ax
+    je      .copy
+
+    add     dx,32                               ; 32-bytes per entry
+
+    mov     ax,word [bp-8]
+    add     ax,1
+    cmp     ax,word [bp-6]
+    mov     word [bp-8],ax                      ; entriesIndex < entriesPerSector
+    jb      .search
+
+    mov     ax,word [bp-4]
+    add     ax,1
+    cmp     ax,word [bp-2]                      ; rootIndex < rootSize
+    mov     word [bp-4],ax
+    jb      .loadSector
+
+.error:
+    pop     di
+    popa
+    mov     ax,1                                ; return 1
+    mov     sp,bp
+    pop     bp
+    ret
+
+.copy:
+    pop     di
+    mov     cx,16
+    cld
+    rep movsw                                   ; Copies the matching entry to the destination
+
+.return:
+    popa
+    xor     ax,ax                               ; return 0
+    mov     sp,bp
+    pop     bp
     ret
 
 
@@ -237,10 +308,10 @@ fat_sanitize:
     ;jmp     .valid
 
 .valid:
-    mov     byte[di],al
+    mov     byte [di],al
+    inc     di
 
 .continue:
-    inc     di
     inc     si
     jmp     .loop
 
@@ -335,8 +406,10 @@ fat_strrchr:
 ;   registers except for the return register ax.
 ;===============================================
 fat_getSizeFats:                                ; short getSizeFats( void )
+    push    dx
     movzx   ax,byte [iFAT_NumberOfFats]
     imul    ax,word [iFAT_SectorsPerFat]
+    pop     dx
     ret
 
 
