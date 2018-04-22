@@ -1097,7 +1097,7 @@ int OP_toValidString(char *dest, size_t destSize, const char *src, size_t srcSiz
 
         // Copy range
         if ((cur >= 'A' && cur <= 'Z') ||
-            (cur >= '0' && cur <= '0'))
+            (cur >= '0' && cur <= '9'))
         {
             *dest = cur;
             dest++;

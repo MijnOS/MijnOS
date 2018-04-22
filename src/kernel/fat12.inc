@@ -158,7 +158,7 @@ fat_searchEntry:
     sub     sp,8
     sub     sp,word [iFAT_BytesPerSector]
     pusha
-    push    es
+    push    es                                  ; Save the destination
     push    di
     mov     bx,ss
     mov     es,bx
@@ -166,29 +166,21 @@ fat_searchEntry:
     mov     ax,word [iFAT_BytesPerSector]
     shr     ax,5
     mov     word [bp-6],ax                      ; WORD entriesPerSector
-    mov     word [bp-8],0                       ; WORD entriesIndex
-
+    
     call    fat_getSizeRoot
     mov     word [bp-2],ax                      ; WORD rootSize
     mov     word [bp-4],0                       ; WORD rootIndex
 
 .loadSector:
+    mov     word [bp-8],0                       ; WORD entriesIndex
+
     lea     ax,[bp]
     sub     ax,word [iFAT_BytesPerSector]
     sub     ax,8
     mov     di,ax                               ; void * sector // Location to store the read sector
 
-    push    es
-    push    bx
-    mov     bx,ss
-    mov     es,bx
-
     mov     ax,word [bp-4]
     call    fat_loadRootSector
-
-    pop     bx
-    pop     es
-
     test    ax,ax
     jne     .error
 
@@ -236,13 +228,15 @@ fat_searchEntry:
     ;pop     bx
     ;pop     ds
 
+    mov     ax,di
+
+    pop     di          ; Restore the original destination
+    pop     es
+
     push    si
-
-    mov     cx,di       ; start of entry
-    mov     si,cx
-    pop     di          ; destination to copy to
+    mov     si,ax       ; start of entry
     mov     cx,32       ; 32-bytes
-
+    
     push    ds
     push    bx
     mov     bx,ss
@@ -254,7 +248,7 @@ fat_searchEntry:
     pop     si
 
 .return:
-    pop     es
+    
     popa
     xor     ax,ax                               ; return 0
     mov     sp,bp

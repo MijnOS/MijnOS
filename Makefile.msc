@@ -5,13 +5,19 @@ CFLAGS = -nologo -MD -W3 -O2 -EHsc
 WFLAGS = -DNDEBUG
 ASFLAGS = -f bin
 
+DUMMIES = dmmy00.txt dmmy01.txt dmmy02.txt dmmy03.txt \
+    dmmy04.txt dmmy05.txt dmmy06.txt dmmy07.txt \
+    dmmy08.txt dmmy09.txt dmmy0A.txt dmmy0B.txt \
+    dmmy0C.txt dmmy0D.txt dmmy0E.txt dmmy0F.txt \
+    dmmy10.txt
 OBJS = kernel.bin cmd.bin
 OBJA = src\tools\writefloppy\io.cpp src\tools\writefloppy\utility.cpp src\tools\writefloppy\fs_raw.cpp src\tools\writefloppy\fs_fat12.cpp src\tools\writefloppy\main.cpp
+
 
 all: writefloppy2.exe image
 
 image: bootloader.bin $(OBJS)
-    bin\writefloppy2.exe -f -w bin -i msdos.bak -o bootdevice.flp -b bootloader.bin $(OBJS)
+    bin\writefloppy2.exe -f -w bin -i msdos.bak -o bootdevice.flp -b bootloader.bin kernel.bin $(DUMMIES) cmd.bin
 
 x86: x86.bin
     bin\writeraw.exe -w bin -o bootdevice.flp x86.bin

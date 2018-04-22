@@ -81,7 +81,7 @@ test_search:
     pop     bx
     pop     ds
 
-    mov     ax,word [bp-6]          ; 0500h
+    mov     ax,word [bp-6]          ; 0005h / 0016h
     call    print_hex
     call    print_newline
 
