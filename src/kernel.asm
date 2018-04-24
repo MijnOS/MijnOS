@@ -26,6 +26,9 @@ kernel:
     call    test_search
     call    print_newline
 
+    call    test_fcluster
+    call    print_newline
+
     jmp     $
 
 
@@ -120,6 +123,25 @@ test_loadSector:
     call    print_hex
 
     pop     di
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+test_fcluster:
+    push    bp
+    mov     bp,sp
+    mov     ax,0002h    ; kernel
+    ;mov     ax,341     ; sector 0-1 boundary check
+
+.next:
+    call    fat_findNextCluster
+    mov     cx,ax
+    call    print_hex
+    cmp     cx,0FF0h
+    jb      .next
+
+.return:
     mov     sp,bp
     pop     bp
     ret

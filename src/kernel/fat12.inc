@@ -15,11 +15,6 @@ iFAT_NumberOfHeads      dw 2                    ; Number of heads
 iFAT_HiddenSectors      dd 0                    ; Number of hidden sectors
 iFAT_DriveNo            db 0                    ; Physical drive number
 
-;===========
-; VARIABLES
-;===========
-fat_buffer              times 512 db 0          ; 512-bytes so we can read a single cluster
-.length                 equ ($-fat_buffer)
 
 
 ;===============================================
@@ -64,82 +59,6 @@ fat_setLoadRegisters:
 ;     ax - Zero if successful.
 ;===============================================
 fat_loadFile:
-    push    bp
-    mov     bp,sp
-    sub     sp,4
-    pusha
-    jmp     .return     ; TODO: This function is not yet finished
-
-    call    fat_getSizeRoot                     ; short max
-    mov     word [bp-4],ax
-
-    xor     cx,cx                               ; short index
-    mov     word [bp-2],cx
-
-.loadNextRoot:                                  ; 1) Load a part of the FAT root
-
-    call    fat_getLogicalRoot
-    add     ax,word [bp-2]
-    call    fat_setLoadRegisters
-
-    ;mov     es,si      ; NOTE: Should already be set properly!
-    mov     bx,fat_buffer
-
-    mov     ah,2                                ; I/O Read
-    mov     al,1                                ; Only 1 sector every turn
-    
-    stc
-    int     13h                                 ; Read a sector of the root
-    jc      .error                              ; Hardware error
-    cmp     al,1                                ; Insufficient number of sectors read
-    jne     .error
-
-    ; NOTE:
-    ;   At this point the sector has been read,
-    ;   so we now need to search for the file.
-    mov     cx,word [iFAT_BytesPerSector]
-    shr     cx,5                                ; Entries per sector
-
-
-.findMatch:
-    push    cx
-    push    si
-    push    di
-
-    mov     di,cx
-    sub     di,1
-    imul    di,32
-
-
-    mov     cx,11       ; Compare both name and extension
-    rep     cmpsb
-    je      .found
-    
-    pop     di
-    pop     si
-    pop     cx
-    loop    .findMatch
-
-.continue:
-    add     word [bp-2],1
-    mov     ax,word [bp-2]                      ; ++index < max
-    cmp     ax,word [bp-4]
-    jb      .notFound
-
-.found:
-    jmp     .return
-
-
-.notFound:                                      ; x) File not found
-    jmp     .return
-
-.error:
-    jmp     .return
-
-.return:
-    popa
-    mov     sp,bp
-    pop     bp
     ret
 
 
@@ -189,59 +108,67 @@ fat_findNextCluster:
     div     cx          ; ax = (ax / cx)
 
     ; Store the values
-    mov     word [bp-4],ax
-    mov     word [bp-6],dx
+    mov     word [bp-4],ax      ; byte offset
+    mov     word [bp-6],dx      ; modulo
 
+
+    ; ax determines the logical sector
     xor     dx,dx
     mov     cx,word [iFAT_BytesPerSector]
-
-.calc_logical:
-    cmp     ax,cx
-    jae     .calc_continue
-    jmp     .calc_break
-
-.calc_continue:
-    sub     ax,cx
-    jmp     calc_logical
-
-.calc_break:
-
-
-.load0:
-
-
-
-
-    ; Store the number of times we have to loop
-    xor     dx,dx
-    mov     ax,word [iFAT_SectorsPerFat]
-    mov     cx,3
     div     cx
-    mov     word [bp-4],ax      ; max
-    mov     word [bp-6],0       ; current
+    mov     word [bp-8],ax      ; logical sector
 
-    ; Set the destination to the 3x sectors reserved on the stack
-    mov     dx,word [iFAT_BytesPerSector]
-    shl     dx,1
-    add     dx,word [iFAT_BytesPerSector]
-    lea     ax,[bp]
-    sub     ax,8
-    sub     ax,dx
-    mov     di,ax
+    ; Destination to read to
+    lea     bx,[bp]
+    sub     bx,8
+    sub     bx,word [iFAT_BytesPerSector]
+    sub     bx,word [iFAT_BytesPerSector]
+    mov     di,bx
 
+    call    fat_loadFatSector       ; 1st sector
+    test    ax,ax
+    jne     .return
 
-.loadNextGroup:
-    mov     ax,word [bp-4]
-    mov     word [bp-8],ax
+    mov     ax,word [bp-8]
+    add     ax,1
+    add     di,word [iFAT_BytesPerSector]
 
-.load_loop:
+    call    fat_loadFatSector       ; 2nd sector
+    test    ax,ax
+    jne     .return
+
+    ; Determine the offset within our buffer
+    mov     ax,word [bp-8]          ; logical sector
+    shl     ax,9                    ; *512
+    mov     dx,word [bp-4]          ; byte offset
+    sub     dx,ax                   ; offset within our buffer
+
+    ; Take the value of the two bytes on our stack
+    ;sub     bx,word [iFAT_BytesPerSector]
+    add     bx,dx                   ; Points to our buffer
+    mov     cx,word [ss:bx]         ; This is the value we seek
+
     mov     ax,word [bp-6]
-    call    fat_loadFatSector
-    add     word [bp-6],1
-    sub     word [bp-8],1
-    cmp     word [bp-8],0
-    ja      .load_loop
+    test    ax,ax
+    je      .even
 
+.odd:
+    shr     cx,4
+    jmp     .result
+
+.even:
+    and     cx,0FFFh
+    jmp     .result
+
+.result:
+    mov     word [ebp-2],cx
+    pop     di
+    pop     es
+    popa
+    mov     ax,word [ebp-2]
+    mov     sp,bp
+    pop     bp
+    ret  
 
 .return:
     pop     di
@@ -375,6 +302,7 @@ fat_loadRootSector:
 fat_loadFatSector:
     pusha
     mov     cx,ax
+    xor     ax,ax
     call    fat_getLogicalFat
     jmp     load_generic
 

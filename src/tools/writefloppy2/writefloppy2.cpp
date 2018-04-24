@@ -120,6 +120,10 @@ bool g_defragment;                  /* Defragments the input volume */
 std::queue<char*> g_queue;          /* All the input file names */
 
 
+#define FILE_BUFFER_SIZE  4096      /* Increase if necessary */
+char g_bufferFileData[FILE_BUFFER_SIZE];    /* Allocations exceeed max */
+
+
 /**
  * FORWARD DECLARATIONS
  *   Operations are forward declared and reside at the end of the file. This
@@ -563,26 +567,34 @@ int main(int argc, char **argv)
         }
     }
 
+    int file_index = 0;
+
     // Add all the individual files
     while (!g_queue.empty())
     {
         char *filename = g_queue.front();
 
-        err = fopen_s(&lpFile, filename, "rb");
-        if (err)
-        {
-            CERROR("Could not open file '%s' for reading. (%d)", filename, err);
-            return 0;
-        }
+        // Need a lot of dummy files
+        //int max = (file_index > 0) ? 12 : 1;
+        //for (int i = 0; i < max; i++) {
 
-        result = OP_addFile(lpFile, filename);
-        fclose(lpFile);
+            err = fopen_s(&lpFile, filename, "rb");
+            if (err)
+            {
+                CERROR("Could not open file '%s' for reading. (%d)", filename, err);
+                return 0;
+            }
 
-        if (result)
-        {
-            CERROR("Could not add file '%s'. (%i)", filename, result);
-            return 0;
-        }
+            result = OP_addFile(lpFile, filename);
+            fclose(lpFile);
+
+            if (result)
+            {
+                CERROR("Could not add file '%s'. (%i)", filename, result);
+                return 0;
+            }
+        //}
+        //file_index++;
 
         g_queue.pop();
     }
@@ -992,14 +1004,9 @@ int OP_addFile(FILE *file, const char *path)
 
     // Ensure we're still error free
     CASSERT(ferror(file) == 0, "Could not determine the file size of '%s'", path);
+    CASSERT(size <= FILE_BUFFER_SIZE, "Increase FILE_BUFFER_SIZE constant");
 
-    char *fileData = new char[size];
-    if (!fileData)
-    {
-        return -1;
-    }
-
-    size_t read = fread(fileData, 1, size, file);
+    size_t read = fread(g_bufferFileData, 1, size, file);
     CASSERT(ferror(file) == 0, "Could not read from '%s'", path);
     if (read != size)
     {
@@ -1007,10 +1014,9 @@ int OP_addFile(FILE *file, const char *path)
     }
 
     int entryIndex;
-    int result = FAT_createFile(&entryIndex, name, ext, FAT_ATTRIB_ARCHIVE, fileData, size);
+    int result = FAT_createFile(&entryIndex, name, ext, FAT_ATTRIB_ARCHIVE, g_bufferFileData, size);
 
-    delete[] fileData;
-    return result;
+    return result * 16;
 }
 
 
