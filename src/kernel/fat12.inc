@@ -58,8 +58,8 @@ fat_setLoadRegisters:
 ; destination. It assumes the destination is
 ; large enough to hold the file.
 ;   In:
-;     si - The name of the file.
-;     di - The destination to store the data.
+;     ds:si - The name of the file.
+;     es:di - The destination to store the data.
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
@@ -143,6 +143,116 @@ fat_loadFile:
     ret
 
 
+
+;===============================================
+; Finds the next cluster value.
+;   In:
+;     ax - The current logical cluster.
+;   Out:
+;     ax - The value of the next logical cluster.
+;===============================================
+fat_findNextCluster:
+    push    bp
+    mov     bp,sp
+    sub     sp,8
+    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [iFAT_BytesPerSector]
+
+    ; Save the destination and set the
+    ; destination pointer to be our stack instead
+    pusha
+    push    es
+    push    di
+    mov     bx,ss
+    mov     es,bx
+
+    ; Immediately store the passed argument
+    mov     word [bp-2],ax
+
+;
+; The input can be a variety of values. Based on
+; the input we can determine if we have to load
+; and which logical sector contains the data.
+;
+.checkInput:
+    mov     ax,word [bp-2]  ; 0FF0h - Reserved
+    cmp     ax,0FF0h        ; 0FF7h - Bad
+    jae     .return         ; 0FF8h - Last
+
+
+    ; Determine the byte the start reading from,
+    ; this determines the logical sector to load
+    xor     dx,dx
+    mov     cx,3
+    mul     cx          ; dx:ax = ax * cx
+    mov     cx,2        ; dx = (ax % cx)
+    div     cx          ; ax = (ax / cx)
+
+    ; Store the values
+    mov     word [bp-4],ax
+    mov     word [bp-6],dx
+
+    xor     dx,dx
+    mov     cx,word [iFAT_BytesPerSector]
+
+.calc_logical:
+    cmp     ax,cx
+    jae     .calc_continue
+    jmp     .calc_break
+
+.calc_continue:
+    sub     ax,cx
+    jmp     calc_logical
+
+.calc_break:
+
+
+.load0:
+
+
+
+
+    ; Store the number of times we have to loop
+    xor     dx,dx
+    mov     ax,word [iFAT_SectorsPerFat]
+    mov     cx,3
+    div     cx
+    mov     word [bp-4],ax      ; max
+    mov     word [bp-6],0       ; current
+
+    ; Set the destination to the 3x sectors reserved on the stack
+    mov     dx,word [iFAT_BytesPerSector]
+    shl     dx,1
+    add     dx,word [iFAT_BytesPerSector]
+    lea     ax,[bp]
+    sub     ax,8
+    sub     ax,dx
+    mov     di,ax
+
+
+.loadNextGroup:
+    mov     ax,word [bp-4]
+    mov     word [bp-8],ax
+
+.load_loop:
+    mov     ax,word [bp-6]
+    call    fat_loadFatSector
+    add     word [bp-6],1
+    sub     word [bp-8],1
+    cmp     word [bp-8],0
+    ja      .load_loop
+
+
+.return:
+    pop     di
+    pop     es
+    popa
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
 ;===============================================
 ; Searches for and copies the found entry.
 ;   In:
@@ -219,15 +329,6 @@ fat_searchEntry:
     ret
 
 .copy:
-    ;push    ds
-    ;push    bx
-    ;mov     bx,ss
-    ;mov     ds,bx
-    ;mov     ax,word [di]
-    ;call    print_hex
-    ;pop     bx
-    ;pop     ds
-
     mov     ax,di
 
     pop     di          ; Restore the original destination
@@ -258,7 +359,7 @@ fat_searchEntry:
 
 
 ;===============================================
-; Loads a FAT root sector
+; Loads a FAT root or table sector
 ;   In:
 ;     ax - The offset within the root sector. [0, 14)
 ;     es:di - The destination to load the sector to.
@@ -267,9 +368,17 @@ fat_searchEntry:
 ;===============================================
 fat_loadRootSector:
     pusha
-
     mov     cx,ax
     call    fat_getLogicalRoot
+    jmp     load_generic
+
+fat_loadFatSector:
+    pusha
+    mov     cx,ax
+    call    fat_getLogicalFat
+    jmp     load_generic
+
+load_generic:
     add     ax,cx
     call    fat_setLoadRegisters
 
@@ -402,7 +511,7 @@ fat_strcmp:
 ; Returns a pointer to the right most occurence
 ; of the matching character within the string.
 ;   In:
-;     si - char * str
+;     ds:si - char * str
 ;     al - char character
 ;   Out:
 ;     ax - NULL if no match; otherwise, char*
@@ -413,9 +522,9 @@ fat_strrchr:
     xor     di,di
 
 .loop:
-    cmp     al,byte [si]
+    cmp     al,byte [ds:si]
     je      .match
-    cmp     byte [si],0
+    cmp     byte [ds:si],0
     je      .return
     add     si,1
     jmp     .loop
@@ -478,3 +587,29 @@ fat_getLogicalData:                             ; short getLogicalData( void )
     pop     bx
     ret
 
+
+fat_getStartFat:                                ; short fat_getStartFat( short idxTable )
+    push    dx
+    call    fat_getLogicalFat
+    imul    ax,word [iFAT_BytesPerSector]
+    ;imul    ax,word [iFAT_SectorsPerCluster]
+    pop     dx
+    ret
+
+
+fat_getStartRoot:                               ; short fat_getStartRoot( void )
+    push    dx
+    call    fat_getLogicalRoot
+    imul    ax,word [iFAT_BytesPerSector]
+    ;imul    ax,word [iFAT_SectorsPerCluster]
+    pop     dx
+    ret
+
+
+fat_getStartData:                               ; short fat_getStartData( void )
+    push    dx
+    call    fat_getLogicalData
+    imul    ax,word [iFAT_BytesPerSector]
+    ;imul    ax,word [iFAT_SectorsPerCluster]
+    pop     dx
+    ret
