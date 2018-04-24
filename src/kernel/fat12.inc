@@ -1,5 +1,6 @@
 [BITS 16]
 
+
 ;===========
 ; Information needed for FAT12 I/O
 ;===========
@@ -59,6 +60,28 @@ fat_setLoadRegisters:
 ;     ax - Zero if successful.
 ;===============================================
 fat_loadFile:
+    push    bp
+    mov     bp,sp
+    sub     sp,11                               ; FAT name + extension
+    sub     sp,MAX_PATH                         ; Input path
+    pusha
+    push    es
+
+    mov     bx,ss                               ; Copy to the stack
+    mov     es,bx
+
+.copy_start:
+    push    di
+    lea     di,[bp-MAX_PATH-11]                 ; Copies the string from the source onto the stack
+    mov     cx,MAX_PATH
+    call    strncpy
+    pop     di
+
+
+    pop     es
+    popa
+    mov     sp,bp
+    pop     bp
     ret
 
 
@@ -94,29 +117,29 @@ fat_findNextCluster:
 ; and which logical sector contains the data.
 ;
 .checkInput:
-    mov     ax,word [bp-2]  ; 0FF0h - Reserved
-    cmp     ax,0FF0h        ; 0FF7h - Bad
-    jae     .return         ; 0FF8h - Last
+    mov     ax,word [bp-2]                      ; 0FF0h - Reserved
+    cmp     ax,0FF0h                            ; 0FF7h - Bad
+    jae     .return                             ; 0FF8h - Last
 
 
     ; Determine the byte the start reading from,
     ; this determines the logical sector to load
     xor     dx,dx
     mov     cx,3
-    mul     cx          ; dx:ax = ax * cx
-    mov     cx,2        ; dx = (ax % cx)
-    div     cx          ; ax = (ax / cx)
+    mul     cx                                  ; dx:ax = ax * cx
+    mov     cx,2                                ; dx = (ax % cx)
+    div     cx                                  ; ax = (ax / cx)
 
     ; Store the values
-    mov     word [bp-4],ax      ; byte offset
-    mov     word [bp-6],dx      ; modulo
+    mov     word [bp-4],ax                      ; byte offset
+    mov     word [bp-6],dx                      ; modulo
 
 
     ; ax determines the logical sector
     xor     dx,dx
     mov     cx,word [iFAT_BytesPerSector]
     div     cx
-    mov     word [bp-8],ax      ; logical sector
+    mov     word [bp-8],ax                      ; logical sector
 
     ; Destination to read to
     lea     bx,[bp]
@@ -125,7 +148,7 @@ fat_findNextCluster:
     sub     bx,word [iFAT_BytesPerSector]
     mov     di,bx
 
-    call    fat_loadFatSector       ; 1st sector
+    call    fat_loadFatSector                   ; 1st sector
     test    ax,ax
     jne     .return
 
@@ -133,20 +156,20 @@ fat_findNextCluster:
     add     ax,1
     add     di,word [iFAT_BytesPerSector]
 
-    call    fat_loadFatSector       ; 2nd sector
+    call    fat_loadFatSector                   ; 2nd sector
     test    ax,ax
     jne     .return
 
     ; Determine the offset within our buffer
-    mov     ax,word [bp-8]          ; logical sector
-    shl     ax,9                    ; *512
-    mov     dx,word [bp-4]          ; byte offset
-    sub     dx,ax                   ; offset within our buffer
+    mov     ax,word [bp-8]                      ; logical sector
+    shl     ax,9                                ; *512
+    mov     dx,word [bp-4]                      ; byte offset
+    sub     dx,ax                               ; offset within our buffer
 
     ; Take the value of the two bytes on our stack
     ;sub     bx,word [iFAT_BytesPerSector]
-    add     bx,dx                   ; Points to our buffer
-    mov     cx,word [ss:bx]         ; This is the value we seek
+    add     bx,dx                               ; Points to our buffer
+    mov     cx,word [ss:bx]                     ; This is the value we seek
 
     mov     ax,word [bp-6]
     test    ax,ax
@@ -258,12 +281,12 @@ fat_searchEntry:
 .copy:
     mov     ax,di
 
-    pop     di          ; Restore the original destination
+    pop     di                                  ; Restore the original destination
     pop     es
 
     push    si
-    mov     si,ax       ; start of entry
-    mov     cx,32       ; 32-bytes
+    mov     si,ax                               ; start of entry
+    mov     cx,32                               ; 32-bytes
     
     push    ds
     push    bx

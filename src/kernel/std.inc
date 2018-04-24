@@ -8,7 +8,7 @@ print:
     mov     ah,0Eh
 
 .loop:
-    lodsb
+    lodsb                                       ; DS:SI
     cmp     al,0
     je      .done
     int     10h
@@ -91,3 +91,57 @@ print_hex:
     popa
     ret
 
+
+;===============================================
+; Copies the maximum number of characters from
+; the source string to the destination string.
+; The function ensures zero-termination of the
+; destination string.
+;   int strncpy(char *dest, char *src, int n)
+; In:
+;   ds:si - Source string
+;   es:di - Destination string
+;   cx - The maximum number of characters
+; Out:
+;   ax - Number of characters copied
+;===============================================
+strncpy:
+    push    bp
+    mov     bp,sp
+    push    si
+    push    di
+    push    cx
+
+.loop:
+    mov     al,byte [ds:si]
+    mov     byte [es:di],al
+    test    al,al
+    je      .end
+    add     si,1
+    add     di,1
+    sub     cx,1
+    cmp     cx,0
+    jne     .loop
+
+.limit:
+    sub     di,1                                ; ensure zero-termination
+    mov     byte [es:di],0
+
+.end:
+    mov     ax,cx
+    pop     cx
+    push    cx
+    push    dx
+
+    xor     dx,dx
+    sub     ax,cx
+    mov     cx,0FFFFh
+    mul     cx
+
+    pop     dx
+    pop     cx
+    pop     di
+    pop     si
+    mov     sp,bp
+    pop     bp
+    ret

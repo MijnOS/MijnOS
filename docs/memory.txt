@@ -1,0 +1,8 @@
+[07C0:0000] Bootloader          |    512 bytes
+[07E0:0000] Bootloader stack    |    512 bytes
+[0800:0000] FAT table           |  4.608 bytes (512 * 9)
+[0920:0000] Root directory      |  7.168 bytes (512 * 14)
+[0AE0:0000] Kernel              |  4.096 bytes
+[0BE0:0000] Kernel stack        | 32.768 bytes
+[13E0:0000] Program             |  4.096 bytes
+[14E0:0000] Program stack       |      ~ bytes

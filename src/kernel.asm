@@ -29,6 +29,9 @@ kernel:
     call    test_fcluster
     call    print_newline
 
+    call    test_strncpy
+    call    print_newline
+
 
 .keypress:
     mov     ah,00h
@@ -160,6 +163,43 @@ test_fcluster:
     ret
 
 
+test_strncpy:
+    push    bp
+    mov     bp,sp
+    sub     sp,010h
+    pusha
+    push    es
+    push    ds
 
+    mov     word [bp-2],04142h
+    mov     word [bp-4],04344h
+    mov     word [bp-6],04546h
+    mov     word [bp-8],04748h
+
+    lea     si,[bp-008h]
+    lea     di,[bp-010h]
+
+    mov     bx,ss
+    mov     ds,bx
+    mov     es,bx
+
+    mov     cx,8
+    call    strncpy
+
+    lea     si,[bp-010h]
+    call    print
+    call    print_newline
+    call    print_hex
+
+    pop     ds
+    pop     es
+    popa
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+%include "src/kernel/const.inc"
 %include "src/kernel/std.inc"
 %include "src/kernel/fat12.inc"
