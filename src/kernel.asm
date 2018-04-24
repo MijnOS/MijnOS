@@ -29,6 +29,15 @@ kernel:
     call    test_fcluster
     call    print_newline
 
+
+.keypress:
+    mov     ah,00h
+    int 	16h
+    movzx   ax,al
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
+
     jmp     $
 
 
@@ -40,6 +49,10 @@ msg_success db "Kernel reports 0 errors." ,0Dh,0Ah,0
 file_cmd    db 'CMD     BIN' 
 cmd_found   db 'CMD found', 0Dh, 0Ah, 0
 cmd_nfound  db 'CMD not found', 0Dh, 0Ah, 0
+
+
+msg_pre     db 'PRE', 0Dh, 0Ah, 0
+msg_post    db 'POST', 0Dh, 0Ah, 0
 
 
 test_search:
