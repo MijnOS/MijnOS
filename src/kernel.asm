@@ -32,6 +32,9 @@ kernel:
     call    test_strncpy
     call    print_newline
 
+    call    test_loadf
+    call    print_newline
+
 
 .keypress:
     mov     ah,00h
@@ -54,17 +57,14 @@ cmd_found   db 'CMD found', 0Dh, 0Ah, 0
 cmd_nfound  db 'CMD not found', 0Dh, 0Ah, 0
 
 
-msg_pre     db 'PRE', 0Dh, 0Ah, 0
-msg_post    db 'POST', 0Dh, 0Ah, 0
-
-
 test_search:
     push    bp
     mov     bp,sp
     sub     sp,32       ; Will hold our FAT entry
 
     lea     di,[bp-32]
-    mov     si,file_cmd
+    ;mov     si,file_cmd
+    mov     si,test_file
 
     push    es
     push    bx
@@ -190,6 +190,7 @@ test_strncpy:
     call    print
     call    print_newline
     call    print_hex
+    call    print_newline
 
     pop     ds
     pop     es
@@ -197,6 +198,48 @@ test_strncpy:
     mov     sp,bp
     pop     bp
     ret
+
+
+test_file   db 'DMMY00  TXT'
+test_error  db 'Error', 0
+test_start  db 'Start', 0
+test_buffer times 512 db 00h
+
+
+test_loadf:
+    push    bp
+    mov     bp,sp
+    pusha
+
+    mov     si,test_file
+    mov     di,test_buffer
+    call    fat_loadFile
+    test    ax,ax
+    jne     .error
+
+    mov     di,test_buffer
+    mov     ax,word [di]
+    call    print_hex
+
+.succces:
+    mov     si,test_start
+    call    print
+    mov     si,test_buffer
+    call    print
+    jmp     .return
+
+.error:
+    mov     si,test_error
+    call    print
+    jmp     .return
+
+.return:
+    popa
+    mov     sp,bp
+    pop     bp
+    ret
+
+
 
 
 

@@ -62,28 +62,119 @@ fat_setLoadRegisters:
 fat_loadFile:
     push    bp
     mov     bp,sp
-    sub     sp,11                               ; FAT name + extension
+    sub     sp,44                               ; FAT name + extension + FAT entry
     sub     sp,MAX_PATH                         ; Input path
     pusha
+    ;push    ds
     push    es
+    push    di
 
     mov     bx,ss                               ; Copy to the stack
     mov     es,bx
 
 .copy_start:
-    push    di
-    lea     di,[bp-MAX_PATH-11]                 ; Copies the string from the source onto the stack
-    mov     cx,MAX_PATH
-    call    strncpy
-    pop     di
+    ;lea     di,[bp-MAX_PATH-44]                 ; Copies the string from the source onto the stack
+    ;mov     cx,MAX_PATH
+    ;call    strncpy
 
+    ;mov     bx,ss
+    ;mov     ds,bx
 
+.get_entry:
+    ;lea     si,[bp-MAX_PATH-44]                 ; TODO: ERROR: DOES NOT SEEM TO RETURN!
+    lea     di,[bp-44]
+    call    fat_searchEntry
+    ;mov     ax,1
+    test    ax,ax
+    jne     .error0
+
+    ; NOTE: good
+    mov     ax,[bp-18]
+    call    print_hex
+
+    pop     di          ; We need our original destination
     pop     es
+    ;pop     ds
+
+    mov     bx,di               ; Buffer pointer
+    mov     ax,word [bp-18]     ; Logical sector
+
+.load_loop:
+    call    fat_logicalToPhysical
+    call    fat_setLoadRegisters
+
+    mov     ah,2
+    mov     al,1
+    
+    stc
+    int     13h
+    jc      .error1
+    cmp     al,1
+    jne     .error1
+    
+    add     bx,word [iFAT_BytesPerSector]
+
+    mov     ax,word [bp-18]
+    call    fat_findNextCluster
+    mov     word [bp-18],ax
+
+    cmp     ax,0FF0h
+    jb      .load_loop
+
+    mov     word [bp-2],0
+    jmp     .return
+
+.error0:
+    pop     di
+    pop     es
+    ;pop     ds
+
+.error1:
+    mov     word [bp-2],1
+
+.return:
     popa
+    mov     ax,word [bp-2]
     mov     sp,bp
     pop     bp
     ret
 
+
+
+;===============================================
+; Gets the size of the file.
+;   In:
+;     ds:si - The name of the entry.
+;   Out:
+;     dx:ax - The size of the file, -1 on error.
+;===============================================
+fat_getFileSize:
+    push    bp
+    mov     bp,sp
+    sub     sp,32
+    pusha
+    push    es
+        
+.load_entry:
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-32]
+    call    fat_searchEntry
+    test    ax,ax
+    jne     .return
+
+.error:
+    mov     word [bp-4],0FFFFh
+    mov     word [bp-2],0FFFFh
+
+.return:
+    pop     es
+    popa
+    mov     dx,word [bp-4]
+    mov     ax,word [bp-2]
+    mov     sp,bp
+    pop     bp
+    ret
 
 
 ;===============================================
@@ -100,6 +191,13 @@ fat_findNextCluster:
     sub     sp,word [iFAT_BytesPerSector]
     sub     sp,word [iFAT_BytesPerSector]
 
+    ;cmp     ax,word [iFAT_SmallSectors]
+    ;jb      .validArg
+    ;mov     sp,bp
+    ;pop     bp
+    ;ret
+
+.validArg:
     ; Save the destination and set the
     ; destination pointer to be our stack instead
     pusha
@@ -563,4 +661,14 @@ fat_getStartData:                               ; short fat_getStartData( void )
     imul    ax,word [iFAT_BytesPerSector]
     ;imul    ax,word [iFAT_SectorsPerCluster]
     pop     dx
+    ret
+
+
+fat_logicalToPhysical:
+    push    cx
+    mov     cx,ax
+    call    fat_getLogicalData
+    sub     ax,2
+    add     ax,cx
+    pop     cx
     ret
