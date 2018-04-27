@@ -86,31 +86,33 @@ kernel:
 test_var    dw 0
 
 ;===============================================
-; N/A
-;   In:
-;     N/A
-;   Out:
-;     N/A
+; Registers the interrupts.
 ;===============================================
 register_interrupts:
-    pusha
-    push    ds
+    push    si
+
+    mov     si,test_interrupt
+    mov     ax,70h
+    call    set_interrupt
+
+    pop     si
+    ret
+
+set_interrupt:
     push    es
+    push    bx
 
-    ;mov     ax,test_interrupt
-    ;mov     cx,ds
-
-    mov     bx,0        ; We need to address zero
+    mov     bx,0        ; Segment ZERO
     mov     es,bx
 
-    mov     bx,01C0h    ; int 70h - Like Linux systems
+    mov     bx,ax
+    shl     bx,2
 
-    mov     word [es:bx],test_interrupt
-    mov     word [es:bx+2],0AE0h
+    mov     word [es:bx],si         ; Function
+    mov     word [es:bx+2],cs       ; Segment
 
+    pop     bx
     pop     es
-    pop     ds
-    popa
     ret
 
 
@@ -145,7 +147,7 @@ msg_success db "Kernel reports 0 errors.", 0Dh, 0Ah, 0
 
 
 
-%include "src/kernel/const.inc"
+%include "src/const.inc"
 %include "src/kernel/std.inc"
 %include "src/kernel/fat12.inc"
 %include "src/kernel/tests.inc"
