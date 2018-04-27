@@ -8,27 +8,20 @@ cmd:
     mov     si,msg_cmd
     call    print
 
+.keypress:
+    mov     ah,00h
+    int 	16h
+    movzx   ax,al
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
+
     jmp     $
-
-
-;===========
-; void print(const char *si)
-;   @param si A pointer to the string to print.
-;===========
-print:
-    mov     ah,0Eh
-
-.repeat:
-    lodsb
-    cmp     al,0
-    je      .return
-    int     10h
-    jmp     .repeat
-
-.return:
-    ret
 
 ;===========
 ; STRINGS
 ;===========
-msg_cmd     db "CMD" ,0Dh,0Ah,0
+msg_cmd     db "CMD", 0Dh, 0Ah, 0
+
+
+%include "src\kernel\std.inc"
