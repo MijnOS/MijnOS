@@ -242,7 +242,7 @@ load_next_cluster:
     mov     es,si
     xor     bx,bx
     movzx   ax,byte [es:bx]
-    cmp     ax,8Ch                              ; If not it has been overwritten or wrongly read
+    cmp     ax,0E9h                             ; If not it has been overwritten or wrongly read
     jne     reboot
     jmp     SEG_KERNEL:0000h
 

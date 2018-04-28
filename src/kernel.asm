@@ -1,6 +1,12 @@
 [BITS 16]
 ; [ORG 0xAE00]
+jmp near kernel
 
+%include "src/const.inc"
+
+msg_success db "Kernel has been loaded...", 0Dh, 0Ah, 0
+cmd_bin     db 'CMD     BIN', 0
+cmd_error   db 'Could not load CMD.bin', 0Dh, 0Ah, 0
 
 
 ;===============================================
@@ -13,77 +19,62 @@ kernel:
     add     ax,100h
     mov     ss,ax
     mov     sp,8000h
-    ;mov     ss,ax
-    ;mov     sp,9000h
-    ;  4kb - 1000h - This is the maximum size of the kernel.
-    ; 32kb - 8000h - This is the available stack space
 
+    ; Indicator that we lsuccesfully loaded the kernel
     mov     si,msg_success
     call    print
-
-    ; call    test_common
-    ; call    print_newline
 
     call    register_interrupts
+    call    exec_cmd
 
-.debug:
-    push    es
-    push    bx
-    mov     bx,0
-    mov     es,bx
-    mov     bx,70h
-    shl     bx,2
-    mov     ax,word [es:bx]
-    pop     bx
-    pop     es
-    call    print_hex
-
-    mov     ah,0Eh
-    mov     al,3Ah
-    int     10h
-
-    push    es
-    push    bx
-    mov     bx,0
-    mov     es,bx
-    mov     bx,70h
-    shl     bx,2
-    add     bx,2
-    mov     ax,word [es:bx]
-    pop     bx
-    pop     es
-    call    print_hex
-
-
-.test:
-    mov     ax,test_var
-    mov     bx,ax
-    mov     word [ds:bx],05678h
-
-    mov     ax,word [ds:bx]
-    call    print_hex
-
-    mov     ax,test_var
-    int     70h                 ; Immediately test
-
-    mov     ax,word [ds:bx]
-    call    print_hex
-
-    mov     si,msg_success
-    call    print
-
-.keypress:
-    mov     ah,00h
-    int 	16h
-    movzx   ax,al
-    call    print_hex
-    call    print_newline
-    jmp     .keypress
+;.keypress:
+;    mov     ah,00h
+;    int     16h
+;    movzx   ax,al
+;    call    print_hex
+;    call    print_newline
+;    jmp     .keypress
 
     jmp     $
 
 
-test_var    dw 0
+
+
+exec_cmd:
+    push    ds
+    push    es
+    push    si
+    push    di
+    push    bx
+
+    ;mov     ds,ds
+    mov     si,cmd_bin
+
+    mov     bx,013E0h   ; CMD segment
+    mov     es,bx
+    xor     di,di
+
+    call    fat_loadFile
+    test    ax,ax
+    jne     .error
+
+.success:
+    call    013E0h:0    ; TODO: determine whether call or jmp is better for this...
+    jmp     .return
+
+.error:
+    mov     si,cmd_error
+    call    print
+
+.return:
+    pop     bx
+    pop     di
+    pop     si
+    pop     es
+    pop     ds
+    ret
+
+
 
 ;===============================================
 ; Registers the interrupts.
@@ -91,7 +82,7 @@ test_var    dw 0
 register_interrupts:
     push    si
 
-    mov     si,test_interrupt
+    mov     si,kernel_interrupts
     mov     ax,70h
     call    set_interrupt
 
@@ -117,37 +108,70 @@ set_interrupt:
 
 
 ;===============================================
-; N/A
-;   In:
-;     N/A
-;   Out:
-;     N/A
+; Set ax and than call int 70h. The input and
+; output differs per request made.
 ;===============================================
-test_interrupt:
-    push    bx
-    mov     bx,ax
-    mov     word [ds:bx],01234h
-    pop     bx
-    push    ax
-    mov     ah,0Eh
-    mov     al,41h
-    int     10h
-    mov     al,0Dh
-    int     10h
-    mov     al,0Ah
-    int     10h
-    pop     ax
+kernel_interrupts:
+    cmp     ax,INT_LOAD_FILE
+    je      .loadFile
+    cmp     ax,INT_EXEC_PROGRAM
+    je      .execProgram
+    cmp     ax,INT_KEYPRESS
+    je      .getChar
+    cmp     ax,INT_PRINT_STRING
+    je      .printString
+    cmp     ax,INT_PRINT_HEX
+    je      .printHex
+    cmp     ax,INT_CLEAR_SCREEN
+    je      .clearScreen
+    iret
+
+
+; short ax loadFile( void * es:di , char * ds:si )
+.loadFile:
+    call    fat_loadFile
+    iret
+
+; void ax execProgram( char * ds:si )
+.execProgram:
+    ; NOTE:
+    ;   Impossible as is, thus cmd should load
+    ;   it to the proper address and boot from
+    ;   that point onwards.
+    iret
+
+; short ax getChar( void )
+.getChar:
+    mov     ah,00h
+    int 	16h
+    movzx   ax,al
+    iret
+
+; void printString( char * ds:si )
+.printString:
+    call    print
+    iret
+
+; void printHex( short cx )
+.printHex:
+    mov     ax,cx
+    call    print_hex
+    iret
+
+; void clearScreen( void )
+.clearScreen:
+    push    cx
+    mov     cx,25
+.continue:
+    call    print_newline
+    loop    .continue
+    pop     cx
     iret
 
 
 ;===========
-; STRINGS
+; DEPENDENCIES
 ;===========
-msg_success db "Kernel reports 0 errors.", 0Dh, 0Ah, 0
-
-
-
-%include "src/const.inc"
 %include "src/kernel/std.inc"
 %include "src/kernel/fat12.inc"
 %include "src/kernel/tests.inc"

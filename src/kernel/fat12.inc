@@ -89,8 +89,8 @@ fat_loadFile:
     jne     .error0
 
     ; NOTE: good
-    mov     ax,[bp-18]
-    call    print_hex
+    ;mov     ax,[bp-18]
+    ;call    print_hex
 
     pop     di          ; We need our original destination
     pop     es
