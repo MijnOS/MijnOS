@@ -59,7 +59,7 @@ exec_cmd:
     jne     .error
 
 .success:
-    call    013E0h:0    ; TODO: determine whether call or jmp is better for this...
+    call    013E0h:0
     jmp     .return
 
 .error:
