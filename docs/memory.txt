@@ -7,4 +7,4 @@
 [13E0:0000] CMD                 |  4.096 bytes
 [14E0:0000] CMD stack           |  4.096 bytes
 [15E0:0000] Program             |  4.096 bytes
-[16E0:0000] Program stack       |      ~ bytes
+[16E0:0000] Program stack       |  4.096 bytes

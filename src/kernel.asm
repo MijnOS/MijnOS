@@ -128,12 +128,18 @@ kernel_interrupts:
     je      .printChar
     cmp     ax,INT_PRINT_NEWLINE
     je      .printNewLine
+    cmp     ax,INT_PRINTN_STRING
+    je      .printNString
     iret
 
 
 ; short ax loadFile( void * es:di , char * ds:si )
 .loadFile:
+    push    bx
+    mov     bx,cx
     call    fat_loadFile
+    mov     word [ds:bx],ax
+    pop     bx
     iret
 
 ; void ax execProgram( char * ds:si )
@@ -147,7 +153,7 @@ kernel_interrupts:
 ; short ax getChar( void )
 .getChar:
     mov     ah,00h
-    int 	16h
+    int     16h
     movzx   ax,al
     iret
 
@@ -181,6 +187,11 @@ kernel_interrupts:
 ; void printNewLine( void )
 .printNewLine:
     call    print_newline
+    iret
+
+; void printNString( char * ds:si, short cx )
+.printNString:
+    call    printn
     iret
 
 

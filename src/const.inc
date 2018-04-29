@@ -16,6 +16,7 @@
 %define INT_PRINT_HEX       12h
 %define INT_PRINT_CHAR      13h
 %define INT_PRINT_NEWLINE   14h
+%define INT_PRINTN_STRING   15h
 
 
 

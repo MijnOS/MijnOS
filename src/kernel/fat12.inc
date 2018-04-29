@@ -2,6 +2,16 @@
 
 
 ;===========
+; ERROR CODES
+;===========
+%define FERR_LOAD_FILE_0            0FFFFh      ; -1
+%define FERR_LOAD_FILE_1            0FFFEh      ; -2
+%define FERR_ENTRY_BY_ID            0FFFDh      ; -3
+%define FERR_LOAD_GENERIC_0         0FFFCh      ; -4
+%define FERR_LOAD_GENERIC_1         0FFFBh      ; -5
+
+
+;===========
 ; Information needed for FAT12 I/O
 ;===========
 iFAT_BytesPerSector     dw 512                  ; Number of bytes per sector
@@ -84,7 +94,6 @@ fat_loadFile:
     ;lea     si,[bp-MAX_PATH-44]                 ; TODO: ERROR: DOES NOT SEEM TO RETURN!
     lea     di,[bp-44]
     call    fat_searchEntry
-    ;mov     ax,1
     test    ax,ax
     jne     .error0
 
@@ -110,7 +119,7 @@ fat_loadFile:
     int     13h
     jc      .error1
     cmp     al,1
-    jne     .error1
+    jne     .error2
     
     add     bx,word [iFAT_BytesPerSector]
 
@@ -128,9 +137,16 @@ fat_loadFile:
     pop     di
     pop     es
     ;pop     ds
+    mov     word [bp-2],ax
+    jmp     .return
 
 .error1:
-    mov     word [bp-2],1
+    mov     word [bp-2],FERR_LOAD_FILE_0
+    jmp     .return
+
+.error2:
+    mov     word [bp-2],FERR_LOAD_FILE_1
+    jmp     .return
 
 .return:
     popa
@@ -381,7 +397,7 @@ fat_getEntryById:
     pop     es
     pop     si
     popa
-    mov     ax,1
+    mov     ax,FERR_ENTRY_BY_ID
     mov     sp,bp
     pop     bp
     ret
@@ -455,10 +471,12 @@ fat_searchEntry:
     jb      .loadSector
 
 .error:
+    mov     word [bp-2],ax
     pop     di
     pop     es
     popa
-    mov     ax,1                                ; return 1
+    mov     ax,word [bp-2]
+    ;mov     ax,1                                ; return 1
     mov     sp,bp
     pop     bp
     ret
@@ -526,9 +544,9 @@ load_generic:
     
     stc
     int     13h                                 ; I/O Read
-    jc      .error                              ; Hardware error
+    jc      .error0                             ; Hardware error
     cmp     al,1                                ; Insufficient number of sectors read
-    jne     .error
+    jne     .error1
     ;jmp     .return
 
 .return:
@@ -536,9 +554,14 @@ load_generic:
     xor     ax,ax
     ret
 
-.error:
+.error0:
     popa
-    mov     ax,1
+    mov     ax,FERR_LOAD_GENERIC_0
+    ret
+
+.error1:
+    popa
+    mov     ax,FERR_LOAD_GENERIC_1
     ret
 
 
@@ -759,3 +782,19 @@ fat_logicalToPhysical:
     add     ax,cx
     pop     cx
     ret
+
+
+;===========
+; FAT error messages
+;===========
+ferr_load0  db 'No matching name', 0
+ferr_load1  db 'Load error', 0
+ferr_load2  db 'Sector error', 0
+
+ferr_fsize  db 'File size', 0
+
+ferr_fread0 db 'I/O Error', 0
+ferr_fread1 db 'I/O Sector', 0
+
+
+
