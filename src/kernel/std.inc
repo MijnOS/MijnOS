@@ -20,6 +20,42 @@ print:
 
 
 ;===============================================
+; Prints a single character to the screen.
+;   void print_char( const char c )
+;===============================================
+print_char:
+    push    ax
+    mov     ah,0Eh
+    int     10h
+    pop     ax
+    ret
+
+
+;===============================================
+; Prints a string till either the null-terminator
+; or the maximum, n, has been reached.
+;   void print( const char * str, short n )
+;===============================================
+printn:
+    pusha
+    mov     ah,0Eh
+
+.loop:
+    cmp     cx,0
+    jbe     .done
+    lodsb
+    cmp     al,0
+    je      .done
+    int     10h
+    sub     cx,1
+    jmp     .loop
+
+.done:
+    popa
+    ret
+
+
+;===============================================
 ; Prints a new line.
 ;   void print( void )
 ;===============================================

@@ -302,6 +302,93 @@ fat_findNextCluster:
 
 
 ;===============================================
+; Searches for the FAT entry by its id.
+;   In:
+;     ax - The id of the entry to find.
+;     es:di - The destination to copy the entry
+;             information to. (sizeof == 32)
+;   Out:
+;     ax - Zero if found; otherwise, non-zero.
+;===============================================
+fat_getEntryById:
+    push    bp
+    mov     bp,sp
+    sub     sp,8
+    sub     sp,word [iFAT_BytesPerSector]
+    pusha
+    push    si
+    push    es                                  ; Original destination
+    push    di
+
+    cmp     ax,0
+    jl      .error
+    cmp     ax,word [iFAT_MaxRootEntries]
+    jge     .error
+
+    mov     bx,ss
+    mov     es,bx
+
+    mov     cx,ax
+
+    mov     ax,word [iFAT_BytesPerSector]
+    shr     ax,5
+    mov     word [bp-6],ax                      ; WORD entriesPerSector
+
+    xchg    ax,cx
+    xor     dx,dx
+    idiv    cx
+
+    mov     word [bp-2],dx                      ; WORD offset
+    mov     word [bp-4],ax                      ; WORD logicalSector
+
+.loadSector:
+    lea     cx,[bp]
+    sub     cx,word [iFAT_BytesPerSector]
+    sub     cx,8
+    mov     di,cx
+
+    call    fat_loadRootSector
+    test    ax,ax
+    jne     .error
+
+.copy:
+    mov     ax,word [bp-2]
+    shl     ax,5
+    mov     si,ax
+    add     si,di       ; Points to the requested entry
+
+    pop     di
+    pop     es
+
+    push    ds
+    push    bx
+    mov     bx,ss
+    mov     ds,bx
+    mov     cx,32       ; [es:di] = dest
+    rep movsb           ; [ds:si] = src
+    pop     bx
+    pop     ds
+
+    pop     si
+    popa
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
+    ret
+
+.error:
+    pop     di
+    pop     es
+    pop     si
+    popa
+    mov     ax,1
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+;===============================================
 ; Searches for and copies the found entry.
 ;   In:
 ;     ds:si - The name of the entry.

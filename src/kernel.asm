@@ -118,12 +118,16 @@ kernel_interrupts:
     je      .execProgram
     cmp     ax,INT_KEYPRESS
     je      .getChar
+    cmp     ax,INT_CLEAR_SCREEN
+    je      .clearScreen
     cmp     ax,INT_PRINT_STRING
     je      .printString
     cmp     ax,INT_PRINT_HEX
     je      .printHex
-    cmp     ax,INT_CLEAR_SCREEN
-    je      .clearScreen
+    cmp     ax,INT_PRINT_CHAR
+    je      .printChar
+    cmp     ax,INT_PRINT_NEWLINE
+    je      .printNewLine
     iret
 
 
@@ -147,6 +151,16 @@ kernel_interrupts:
     movzx   ax,al
     iret
 
+; void clearScreen( void )
+.clearScreen:
+    push    cx
+    mov     cx,25
+.continue:
+    call    print_newline
+    loop    .continue
+    pop     cx
+    iret
+
 ; void printString( char * ds:si )
 .printString:
     call    print
@@ -158,15 +172,17 @@ kernel_interrupts:
     call    print_hex
     iret
 
-; void clearScreen( void )
-.clearScreen:
-    push    cx
-    mov     cx,25
-.continue:
-    call    print_newline
-    loop    .continue
-    pop     cx
+; void printChar( char cl )
+.printChar:
+    mov     ax,cx
+    call    print_char
     iret
+
+; void printNewLine( void )
+.printNewLine:
+    call    print_newline
+    iret
+
 
 
 ;===========

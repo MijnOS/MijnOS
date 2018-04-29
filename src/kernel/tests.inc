@@ -6,6 +6,7 @@ cmd_found   db 'CMD found', 0Dh, 0Ah, 0
 cmd_nfound  db 'CMD not found', 0Dh, 0Ah, 0
 
 
+
 test_common:
     call    test_loadSector
     call    print_newline
@@ -22,7 +23,11 @@ test_common:
     call    test_loadf
     call    print_newline
 
+    call    test_loadById
+    call    print_newline
+
     ret
+
 
 
 test_search:
@@ -70,7 +75,6 @@ test_search:
 
     jmp     .return
 
-
 .not_found:
     mov     si,cmd_nfound
     call    print
@@ -79,6 +83,7 @@ test_search:
     mov     sp,bp
     pop     bp
     ret
+
 
 
 test_loadSector:
@@ -112,6 +117,7 @@ test_loadSector:
     ret
 
 
+
 test_fcluster:
     push    bp
     mov     bp,sp
@@ -129,6 +135,7 @@ test_fcluster:
     mov     sp,bp
     pop     bp
     ret
+
 
 
 test_strncpy:
@@ -168,11 +175,11 @@ test_strncpy:
     ret
 
 
+
 test_file   db 'DMMY00  TXT'
 test_error  db 'Error', 0
 test_start  db 'Start', 0
 test_buffer times 512 db 00h
-
 
 test_loadf:
     push    bp
@@ -207,3 +214,52 @@ test_loadf:
     pop     bp
     ret
 
+
+
+test_loadById:
+    push    bp
+    mov     bp,sp
+    sub     sp,32
+    sub     sp,2
+    push    es
+    push    di
+    push    bx
+
+    mov     word [ss:bp-34],4
+
+.loopTest:
+
+    lea     di,[bp-32]
+    mov     bx,ss
+    mov     es,bx
+
+    mov     ax,word [ss:bp-34]
+    call    fat_getEntryById
+    call    print_hex
+    call    print_newline
+
+    push    ds
+    push    bx
+
+    mov     bx,ss
+    mov     ds,bx
+
+    lea     si,[bp-32]
+    mov     cx,11
+    call    printn
+    call    print_newline
+
+    pop     bx
+    pop     ds
+
+    sub     word [ss:bp-34],1
+    cmp     word [ss:bp-34],0
+    ja      .loopTest
+
+
+    pop     bx
+    pop     di
+    pop     es
+    mov     sp,bp
+    pop     bp
+    ret
