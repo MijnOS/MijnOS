@@ -32,6 +32,12 @@ main:
     call    np_complexChar
 
 .continue:
+    ; test
+    xor     dx,dx
+    mov     dh,5
+    mov     ax,INT_SET_CURSOR_POS
+    int     70h
+
     mov     ax,word [text_quit]
     test    ax,ax
     je      .loop

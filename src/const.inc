@@ -10,6 +10,8 @@
 %define INT_EXEC_PROGRAM    2
 
 %define INT_KEYPRESS        8
+%define INT_GET_CURSOR_POS  9
+%define INT_SET_CURSOR_POS  0Ah
 
 %define INT_CLEAR_SCREEN    10h
 %define INT_PRINT_STRING    11h

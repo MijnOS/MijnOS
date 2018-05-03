@@ -59,6 +59,162 @@ fat_setLoadRegisters:
     ret
 
 
+
+;===============================================
+; Writes a file to the medium.
+;   In:
+;     ?
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_writeFile:
+    push    bp
+    mov     bp,sp
+
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+; Searches for the first empty cluster in the
+; FAT table.
+fat_findEmptyCluster:
+    push    bp
+    mov     bp,sp
+    sub     sp,8
+    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [iFAT_BytesPerSector]
+
+.loadNext:
+    lea     bx,[bp]
+    sub     bx,8
+    sub     bx,word [iFAT_BytesPerSector]
+    sub     bx,word [iFAT_BytesPerSector]
+    mov     di,bx
+
+    call    fat_loadFatSector                   ; 1st sector
+    test    ax,ax
+    jne     .return 
+
+    ; TODO: load next sector
+    add     ax,1
+    add     di,word [iFAT_BytesPerSector]
+
+    call    fat_loadFatSector                   ; 2nd sector
+    test    ax,ax
+    jne     .return
+
+    ; TODO: load value into cx
+
+.odd:
+    shr     cx,4
+    jmp     .compare
+
+.even:
+    and     cx,0FFFh
+    jmp     .compare
+
+.compare:
+    test    cx,cx
+    jne     .compareNext            ; TODO: actual next
+
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+; Searches for and returns the index of the
+; first empty file entry in the root directory.
+fat_findEmptyFileEntry:
+    push    bp
+    mov     bp,sp
+    sub     sp,8
+    sub     sp,word [iFAT_BytesPerSector]
+    pusha
+    push    es                                  ; Save the destination
+    push    di
+    mov     bx,ss
+    mov     es,bx
+
+    mov     ax,word [iFAT_BytesPerSector]
+    shr     ax,5
+    mov     word [bp-6],ax                      ; WORD entriesPerSector
+
+    call    fat_getSizeRoot
+    mov     word [bp-2],ax                      ; WORD rootSize
+    mov     word [bp-4],0                       ; WORD rootIndex
+
+.loadSector:
+    mov     word [bp-8],0                       ; WORD entriesIndex
+
+    lea     ax,[bp]
+    sub     ax,word [iFAT_BytesPerSector]
+    sub     ax,8
+    mov     di,ax
+
+    mov     ax,word [bp-4]
+    call    fat_loadRootSector
+    test    ax,ax
+    jne     .error
+
+    lea     dx,[bp]
+    sub     dx,word [iFAT_BytesPerSector]
+    sub     dx,8                                ; dx now points to the first entry of the loaded sector
+
+.search:
+    mov     di,dx
+    mov     al,byte [es:di]
+    cmp     al,0E5h     ; State: erased
+    je      .calculate
+    cmp     al,0        ; State: free
+    je      .calculate
+
+    add     dx,32                               ; 32-bytes per entry
+
+    mov     ax,word [bp-8]
+    add     ax,1
+    cmp     ax,word [bp-6]
+    mov     word [bp-8],ax                      ; entriesIndex < entriesPerSector
+    jb      .search
+
+    mov     ax,word [bp-4]
+    add     ax,1
+    cmp     ax,word [bp-2]                      ; rootIndex < rootSize
+    mov     word [bp-4],ax
+    jb      .loadSector
+
+.error:
+    pop     di
+    pop     es
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
+
+.calculate:
+    xor     dx,dx
+    mov     ax,word [bp-4]      ; bp-4 = rootIndex
+    mov     cx,word [bp-6]      ; bp-6 = entriesPerSector
+    mul     cx
+    mov     cx,word [bp-8]      ; bp-8 = entriesIndex
+    add     ax,cx
+    mov     word [bp-2],ax
+    ; entriesPerSector * rootIndex
+    ; + entriesIndex
+
+.return:
+    pop     di
+    pop     es
+    popa
+    mov     ax,word [bp-2]
+    mov     sp,bp
+    pop     bp
+    ret
+
+
 ;===============================================
 ; Loads a file from the FAT and stores it in the
 ; destination. It assumes the destination is

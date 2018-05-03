@@ -24,8 +24,11 @@ kernel:
     mov     si,msg_success
     call    print
 
+    call    fat_findEmptyCluster
+    call    print_hex
+
     call    register_interrupts
-    call    exec_cmd
+    ;call    exec_cmd
 
 ;.keypress:
 ;    mov     ah,00h
@@ -116,8 +119,14 @@ kernel_interrupts:
     je      .loadFile
     cmp     ax,INT_EXEC_PROGRAM
     je      .execProgram
+
     cmp     ax,INT_KEYPRESS
     je      .getChar
+    cmp     ax,INT_GET_CURSOR_POS
+    je      .getCursorPos
+    cmp     ax,INT_SET_CURSOR_POS
+    je      .setCursorPos
+
     cmp     ax,INT_CLEAR_SCREEN
     je      .clearScreen
     cmp     ax,INT_PRINT_STRING
@@ -130,6 +139,7 @@ kernel_interrupts:
     je      .printNewLine
     cmp     ax,INT_PRINTN_STRING
     je      .printNString
+
     iret
 
 
@@ -157,8 +167,36 @@ kernel_interrupts:
     movzx   ax,al
     iret
 
+; ax, cx, dx
+.getCursorPos:
+    mov     bh,0
+    mov     ah,3
+    int     10h
+    iret
+
+; NULL
+.setCursorPos:
+    mov     ah,2
+    mov     bh,0
+    ;mov     dh,byte [row]
+    ;mov     dl,byte [column]
+    int     10h
+    iret
+
+
 ; void clearScreen( void )
 .clearScreen:
+    push    ax
+    push    bx
+    xor     ax,ax
+    xor     bx,bx
+    mov     bh,0
+    mov     ah,2
+    mov     dh,24       ; HEIGHT: 25-characters
+    mov     dl,79       ; WIDTH : 80-characters
+    int     10h
+    pop     bx
+    pop     ax
     push    cx
     mov     cx,25
 .continue:
