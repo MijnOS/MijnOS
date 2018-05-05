@@ -79,33 +79,64 @@ fat_writeFile:
 
 ; Searches for the first empty cluster in the
 ; FAT table.
+; TODO: Cluster boundary checks, it currently
+;       keeps checking till the first empty space
+;       or an error.
 fat_findEmptyCluster:
     push    bp
     mov     bp,sp
     sub     sp,8
     sub     sp,word [iFAT_BytesPerSector]
     sub     sp,word [iFAT_BytesPerSector]
+    push    es
+    push    bx
+    push    di
+    push    cx
+    push    dx
+
+    mov     word [bp-8],0                       ; current sector
+
+    mov     bx,ss                               ; Set the target segment
+    mov     es,bx
 
 .loadNext:
     lea     bx,[bp]
     sub     bx,8
     sub     bx,word [iFAT_BytesPerSector]
     sub     bx,word [iFAT_BytesPerSector]
-    mov     di,bx
+    mov     di,bx                               ; es:di
+
+    mov     ax,word [bp-8]                      ; sector_0
+    add     word [bp-8],1                       ; sector++
 
     call    fat_loadFatSector                   ; 1st sector
     test    ax,ax
-    jne     .return 
+    jne     .error0 
 
-    ; TODO: load next sector
-    add     ax,1
     add     di,word [iFAT_BytesPerSector]
+    mov     ax,word [bp-8]                      ; sector_1
 
     call    fat_loadFatSector                   ; 2nd sector
     test    ax,ax
-    jne     .return
+    jne     .error1
 
-    ; TODO: load value into cx
+    mov     word [bp-6],0                       ; WORD logicalCluster
+
+.compareNext:
+    mov     ax,word [bp-6]                      ; logicalCluster
+    xor     dx,dx           ; dx:ax = ax * cx
+    mov     cx,3            ; dx = (ax % cx)
+    mul     cx              ; ax = (ax / cx)
+    mov     cx,2            ; ax = byte offset in current cluster
+    div     cx              ; dx = modulo (for bit-shifting)
+
+    push    bx
+    add     bx,ax
+    mov     cx,word [ss:bx]
+    pop     bx
+
+    test    ax,ax
+    je      .even
 
 .odd:
     shr     cx,4
@@ -117,9 +148,30 @@ fat_findEmptyCluster:
 
 .compare:
     test    cx,cx
-    jne     .compareNext            ; TODO: actual next
+    je      .found
+    add     word [bp-6],1
+    cmp     word [bp-6],0156h                   ; Max per sector
+    ja      .loadNext
+    jmp     .compareNext
+
+.found:
+    mov     ax,word [bp-6]
+    jmp     .return
+
+.error0:
+    mov     ax,0FFFFh
+    jmp     .return
+
+.error1:
+    mov     ax,0FFFEh
+    jmp     .return
 
 .return:
+    pop     dx
+    pop     cx
+    pop     di
+    pop     bx
+    pop     es
     mov     sp,bp
     pop     bp
     ret
