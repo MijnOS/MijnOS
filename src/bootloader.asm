@@ -1,13 +1,7 @@
 [BITS 16]
     jmp near bootstrap
 
-
-%define SEG_BOOTLOADER  07C0h                   ; NOTE: Bootloader is always at this address and 512-bytes in size
-%define SEG_BOOT_STACK  07E0h                   ; NOTE: The stack works in reverse but starts after the bootloader
-%define SEG_FAT_TABLE   0800h
-%define SEG_ROOT_DIR    0920h
-%define SEG_KERNEL      0AE0h
-
+%include "src/const.inc"
 
 ; BPB
 OEMId                   db 'MijnOS_0'           ; OEM identifier
@@ -41,7 +35,7 @@ bootstrap:
     mov     ax,SEG_BOOTLOADER
     mov     ds,ax                               ; Set data segment to where we're loaded
     mov     es,ax
-    mov     ax,SEG_BOOT_STACK                   ; Skip over the bootloader
+    mov     ax,SEG_BOOTLOADER_STACK             ; Skip over the bootloader
     mov     ss,ax
     mov     sp,200h                             ; Set up a 512 bytes stack after the bootloader
 
@@ -126,7 +120,7 @@ load_root:
     call    setLoadRegisters
 
     ; [ES:BX]
-    mov     si,SEG_ROOT_DIR                     ; Set the pointer to the buffer
+    mov     si,SEG_ROOT_DIRECTORY               ; Set the pointer to the buffer
     mov     es,si
     xor     bx,bx
 

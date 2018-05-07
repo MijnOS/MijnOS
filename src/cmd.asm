@@ -1,5 +1,5 @@
 [BITS 16]
-; [ORG 0x13E00]
+; [ORG SEG_CMD]
 jmp main
 
 
@@ -25,12 +25,12 @@ cmd_regs    times 2 dw 0                        ; Used to store CMD registers du
 ; Entry point
 ;===============================================
 main:
-    mov     ax,013E0h
+    mov     ax,SEG_CMD
     mov     ds,ax
     mov     es,ax
-    add     ax,100h
+    add     ax,100h     ; 4kb
     mov     ss,ax
-    mov     sp,1000h
+    mov     sp,1000h    ; 4kb
 
 .init:
     mov     ax,INT_CLEAR_SCREEN
@@ -192,7 +192,7 @@ start_program:
     ;mov     ds,ds
     mov     si,cmd_fpath
 
-    mov     bx,015E0h   ; Program segment
+    mov     bx,SEG_PROGRAM                      ; Program segment
     mov     es,bx
     xor     di,di
 
@@ -261,21 +261,21 @@ cmd_callProgram:
     mov     word [ds:cmd_regs],sp
 
     ; 2) Change the segment and stack to that of the calling program
-    mov     ax,015E0h
+    mov     ax,SEG_PROGRAM
     mov     ds,ax
     mov     es,ax
-    add     ax,100h
+    add     ax,100h     ; 4kb
     mov     ss,ax
-    mov     sp,1000h
+    mov     sp,1000h    ; 4kb
 
     ; 3) Launch the actual program
-    call    015E0h:0
+    call    SEG_PROGRAM:0
 
     ; 4) Restore the pointers
-    mov     ax,013E0h
+    mov     ax,SEG_CMD
     mov     ds,ax
     mov     es,ax
-    add     ax,100h
+    add     ax,100h     ; 4kb
     mov     ss,ax
 
     mov     sp,word [ds:cmd_regs]

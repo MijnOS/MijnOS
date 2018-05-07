@@ -3,22 +3,22 @@
 jmp main
 
 %include "src\const.inc"
-%define BUFFER_SIZE     64
-msg_test    db 'ls', 0Dh, 0Ah, 0
-
-
 
 ;===============================================
 ; Entry point
 ;===============================================
 main:
-    push    si
-    push    ax
+    pusha
 
-    mov     si,msg_test
-    mov     ax,INT_PRINT_STRING
+    mov     bx,1
+    mov     cx,2
+    mov     dx,3
+    mov     si,4
+    mov     di,5
+
+
+    mov     ax,7FFFh
     int     70h
 
-    pop     ax
-    pop     si
+    popa
     retf

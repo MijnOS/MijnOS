@@ -38,7 +38,7 @@ iFAT_DriveNo            db 0                    ; Physical drive number
 fat_setLoadRegisters:
     push    bx
     push    ax
-    mov     bx,ax                               ; Preserve the logical sector number
+    mov     bx,ax                               ; Preserve the logical sector number  
 
     mov     dx,0                                ; First sector
     div     word [iFAT_SectorsPerTrack]         ; edx = eax MOD SectorsPerTrack / eax = eax DIV SectorsPerTrack
@@ -63,7 +63,31 @@ fat_setLoadRegisters:
 ;===============================================
 ; Writes a file to the medium.
 ;   In:
-;     ?
+;     es:bx - File name
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_doesFileExist:
+    push    bp
+    mov     bp,sp
+    sub     sp,8                                ; bp-8
+    sub     sp,word [iFAT_BytesPerSector]       ; bp-8-512
+
+
+
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+;===============================================
+; Writes a file to the medium.
+;   In:
+;     ds:si - File name
+;     es:bx - File data
+;     cx - The number of bytes to write.
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
@@ -71,6 +95,10 @@ fat_writeFile:
     push    bp
     mov     bp,sp
 
+    ; 1) Check if file with that name already exists
+
+
+.return:
     mov     sp,bp
     pop     bp
     ret
@@ -989,6 +1017,15 @@ fat_logicalToPhysical:
     sub     ax,2
     add     ax,cx
     pop     cx
+    ret
+
+
+fat_getDebug1:
+    mov     ax,iFAT_BytesPerSector
+    ret
+
+fat_getDebug2:
+    mov     ax,word [iFAT_BytesPerSector]
     ret
 
 

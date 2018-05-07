@@ -1,4 +1,23 @@
 ;===============================================
+; SEGMENT LOCATIONS AND SIZES
+;===============================================
+%define SEG_BOOTLOADER              07C0h       ;   512 bytes
+%define SEG_BOOTLOADER_STACK        07E0h       ;   512 bytes
+%define SEG_FAT_TABLE               0800h       ;   512 bytes * 9
+%define SEG_ROOT_DIRECTORY          0920h       ;   512 bytes * 14
+%define SEG_KERNEL                  0AE0h       ; 16.384 bytes
+%define SEG_KERNEL_STACK            0EE0h       ; 16.384 bytes
+%define SEG_CMD                     12E0h       ;  4.096 bytes
+%define SEG_CMD_STACK               13E0h       ;  4.096 bytes
+%define SEG_PROGRAM                 14E0h       ;  4.096 bytes
+%define SEG_PROGRAM_STACK           15E0h       ;  4.096 bytes
+
+; NOTES:
+;  - Bootloader is always at this address and 512-bytes in size
+;  - The stack works in reverse but starts after the bootloader
+
+
+;===============================================
 ; SYSTEM WIDE CONSTANTS
 ;===============================================
 %define MAX_PATH    256

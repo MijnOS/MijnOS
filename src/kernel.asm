@@ -1,5 +1,5 @@
 [BITS 16]
-; [ORG 0xAE00]
+; [ORG SEG_KERNEL]
 jmp near kernel
 
 %include "src/const.inc"
@@ -8,6 +8,7 @@ msg_success db "Kernel has been loaded...", 0Dh, 0Ah, 0
 cmd_bin     db 'CMD     BIN', 0
 cmd_error   db 'Could not load CMD.bin', 0Dh, 0Ah, 0
 
+kernel_var  dw 512
 
 ;===============================================
 ; Entry point of the kernel module.
@@ -16,19 +17,19 @@ kernel:
     mov     ax,cs
     mov     ds,ax
     mov     es,ax
-    add     ax,100h
+    add     ax,400h     ; 16kb
     mov     ss,ax
-    mov     sp,8000h
+    mov     sp,4000h    ; 16kb
 
     ; Indicator that we lsuccesfully loaded the kernel
     mov     si,msg_success
     call    print
 
-    call    fat_findEmptyCluster
-    call    print_hex
+    ;call    fat_findEmptyCluster
+    ;call    print_hex
 
     call    register_interrupts
-    ;call    exec_cmd
+    call    exec_cmd
 
 ;.keypress:
 ;    mov     ah,00h
@@ -53,7 +54,7 @@ exec_cmd:
     ;mov     ds,ds
     mov     si,cmd_bin
 
-    mov     bx,013E0h   ; CMD segment
+    mov     bx,SEG_CMD
     mov     es,bx
     xor     di,di
 
@@ -62,7 +63,7 @@ exec_cmd:
     jne     .error
 
 .success:
-    call    013E0h:0
+    call    SEG_CMD:0
     jmp     .return
 
 .error:
@@ -139,6 +140,10 @@ kernel_interrupts:
     je      .printNewLine
     cmp     ax,INT_PRINTN_STRING
     je      .printNString
+
+
+    cmp     ax,7FFFh
+    je      .testFunction
 
     iret
 
@@ -230,6 +235,100 @@ kernel_interrupts:
 ; void printNString( char * ds:si, short cx )
 .printNString:
     call    printn
+    iret
+
+
+
+.testFunction:
+    push    ax
+    push    bx
+
+    ; ax | 7FFF
+    ; bx | 
+    ; cx | 
+    ; dx | 
+    ; si | ?
+    ; di | ?
+    ; ss | 16E0
+    ; ds | 15E0
+    ; es | 15E0
+
+    ; ax
+    call    print_hex
+    call    print_newline
+
+    ; bx
+    mov     ax,bx
+    call    print_hex
+    call    print_newline
+
+    ; cx
+    mov     ax,cx
+    call    print_hex
+    call    print_newline
+
+    ; dx
+    mov     ax,dx
+    call    print_hex
+    call    print_newline
+
+    ; si
+    mov     ax,si
+    call    print_hex
+    call    print_newline
+
+    ; di
+    mov     ax,di
+    call    print_hex
+    call    print_newline
+
+    ; ss
+    mov     ax,ss
+    call    print_hex
+    call    print_newline
+
+    ; ds
+    mov     ax,ds
+    call    print_hex
+    call    print_newline
+
+    ; es
+    mov     ax,es
+    call    print_hex
+    call    print_newline
+
+    ; debug (0)
+    mov     ax,fat_getDebug1     ; 0x735
+    call    print_hex
+    call    print_newline
+
+    ; debug (1)
+    call    fat_getDebug1        ; 0x003 (?)
+    call    print_hex
+    call    print_newline
+
+    ; debug (2)
+    call    fat_getDebug1
+    mov     bx,ax               ; 512
+    mov     ax,word [bx]
+    call    print_hex
+    call    print_newline
+
+    ; debug (3)
+    call    fat_getDebug2        ; 512
+    call    print_hex
+    call    print_newline
+
+    mov     ax,kernel_var
+    call    print_hex
+    call    print_newline
+
+    mov     ax,word [kernel_var]
+    call    print_hex
+    call    print_newline
+
+    pop     bx
+    pop     ax
     iret
 
 
