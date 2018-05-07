@@ -10,7 +10,7 @@ DUMMIES = dmmy00.txt dmmy01.txt dmmy02.txt dmmy03.txt \
     dmmy08.txt dmmy09.txt dmmy0A.txt dmmy0B.txt \
     dmmy0C.txt dmmy0D.txt dmmy0E.txt dmmy0F.txt \
     dmmy10.txt
-OBJS = kernel.bin cmd.bin ls.bin cls.bin notepad.bin debug.bin
+OBJS = kernel.bin cmd.bin ls.bin cls.bin notepad.bin
 OBJA = src\tools\writefloppy\io.cpp src\tools\writefloppy\utility.cpp src\tools\writefloppy\fs_raw.cpp src\tools\writefloppy\fs_fat12.cpp src\tools\writefloppy\main.cpp
 
 
@@ -48,9 +48,6 @@ ls.bin:
 
 notepad.bin:
     $(AS) $(ASFLAGS) -o bin\notepad.bin src\notepad.asm 
-
-debug.bin:
-    $(AS) $(ASFLAGS) -o bin\debug.bin src\debug.asm 
 
 classic: writefloppy.exe x86.bin
     bin\writefloppy.exe -d bin -b x86.bin -o boot.flp

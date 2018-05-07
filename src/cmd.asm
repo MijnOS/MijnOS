@@ -196,11 +196,10 @@ start_program:
     mov     es,bx
     xor     di,di
 
-    ;mov     cx,cmd_ferr
-    ;mov     ax,INT_LOAD_FILE
-    ;int     70h
-    ;mov     ax,word [cmd_ferr]
-    call    fat_loadFile                        ; TODO: use interrupts!
+    mov     cx,cmd_ferr
+    mov     ax,INT_LOAD_FILE
+    int     70h
+    mov     ax,word [cmd_ferr]
 
     test    ax,ax
     jne     .error
@@ -477,13 +476,3 @@ cmd_copyString:
     pop     di
     pop     si
     ret
-
-
-
-;===========
-; DEPENDENCIES
-;===========
-%include "src/kernel/std.inc"
-%include "src/kernel/fat12.inc"
-%include "src/kernel/tests.inc"
-

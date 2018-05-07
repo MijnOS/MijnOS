@@ -17,6 +17,7 @@ kernel:
     mov     ax,cs
     mov     ds,ax
     mov     es,ax
+    mov     gs,ax       ; NOTE: This is used for interrupt calls
     add     ax,400h     ; 16kb
     mov     ss,ax
     mov     sp,4000h    ; 16kb
@@ -43,7 +44,10 @@ kernel:
 
 
 
-
+;===============================================
+; [Internal]
+;   Starts the execution of the CMD program.
+;===============================================
 exec_cmd:
     push    ds
     push    es
@@ -81,7 +85,8 @@ exec_cmd:
 
 
 ;===============================================
-; Registers the interrupts.
+; [Internal]
+;   Registers the interrupts.
 ;===============================================
 register_interrupts:
     push    si
@@ -112,10 +117,17 @@ set_interrupt:
 
 
 ;===============================================
-; Set ax and than call int 70h. The input and
-; output differs per request made.
+; [External]
+;   Set ax and than call int 70h. The input and
+;   output differs per request made.
 ;===============================================
 kernel_interrupts:
+    push    gs
+    push    bx
+    mov     bx,SEG_KERNEL                       ; Fail-safe
+    mov     gs,bx
+    pop     bx
+
     cmp     ax,INT_LOAD_FILE
     je      .loadFile
     cmp     ax,INT_EXEC_PROGRAM
@@ -141,10 +153,8 @@ kernel_interrupts:
     cmp     ax,INT_PRINTN_STRING
     je      .printNString
 
-
-    cmp     ax,7FFFh
-    je      .testFunction
-
+.return:
+    pop     gs
     iret
 
 
@@ -155,7 +165,7 @@ kernel_interrupts:
     call    fat_loadFile
     mov     word [ds:bx],ax
     pop     bx
-    iret
+    jmp     .return
 
 ; void ax execProgram( char * ds:si )
 .execProgram:
@@ -163,21 +173,21 @@ kernel_interrupts:
     ;   Impossible as is, thus cmd should load
     ;   it to the proper address and boot from
     ;   that point onwards.
-    iret
+    jmp     .return
 
 ; short ax getChar( void )
 .getChar:
     mov     ah,00h
     int     16h
     movzx   ax,al
-    iret
+    jmp     .return
 
 ; ax, cx, dx
 .getCursorPos:
     mov     bh,0
     mov     ah,3
     int     10h
-    iret
+    jmp     .return
 
 ; NULL
 .setCursorPos:
@@ -186,7 +196,7 @@ kernel_interrupts:
     ;mov     dh,byte [row]
     ;mov     dl,byte [column]
     int     10h
-    iret
+    jmp     .return
 
 
 ; void clearScreen( void )
@@ -208,128 +218,34 @@ kernel_interrupts:
     call    print_newline
     loop    .continue
     pop     cx
-    iret
+    jmp     .return
 
 ; void printString( char * ds:si )
 .printString:
     call    print
-    iret
+    jmp     .return
 
 ; void printHex( short cx )
 .printHex:
     mov     ax,cx
     call    print_hex
-    iret
+    jmp     .return
 
 ; void printChar( char cl )
 .printChar:
     mov     ax,cx
     call    print_char
-    iret
+    jmp     .return
 
 ; void printNewLine( void )
 .printNewLine:
     call    print_newline
-    iret
+    jmp     .return
 
 ; void printNString( char * ds:si, short cx )
 .printNString:
     call    printn
-    iret
-
-
-
-.testFunction:
-    push    ax
-    push    bx
-
-    ; ax | 7FFF
-    ; bx | 
-    ; cx | 
-    ; dx | 
-    ; si | ?
-    ; di | ?
-    ; ss | 16E0
-    ; ds | 15E0
-    ; es | 15E0
-
-    ; ax
-    call    print_hex
-    call    print_newline
-
-    ; bx
-    mov     ax,bx
-    call    print_hex
-    call    print_newline
-
-    ; cx
-    mov     ax,cx
-    call    print_hex
-    call    print_newline
-
-    ; dx
-    mov     ax,dx
-    call    print_hex
-    call    print_newline
-
-    ; si
-    mov     ax,si
-    call    print_hex
-    call    print_newline
-
-    ; di
-    mov     ax,di
-    call    print_hex
-    call    print_newline
-
-    ; ss
-    mov     ax,ss
-    call    print_hex
-    call    print_newline
-
-    ; ds
-    mov     ax,ds
-    call    print_hex
-    call    print_newline
-
-    ; es
-    mov     ax,es
-    call    print_hex
-    call    print_newline
-
-    ; debug (0)
-    mov     ax,fat_getDebug1     ; 0x735
-    call    print_hex
-    call    print_newline
-
-    ; debug (1)
-    call    fat_getDebug1        ; 0x003 (?)
-    call    print_hex
-    call    print_newline
-
-    ; debug (2)
-    call    fat_getDebug1
-    mov     bx,ax               ; 512
-    mov     ax,word [bx]
-    call    print_hex
-    call    print_newline
-
-    ; debug (3)
-    call    fat_getDebug2        ; 512
-    call    print_hex
-    call    print_newline
-
-    mov     ax,kernel_var
-    call    print_hex
-    call    print_newline
-
-    mov     ax,word [kernel_var]
-    call    print_hex
-    call    print_newline
-
-    pop     bx
-    pop     ax
-    iret
+    jmp     .return
 
 
 

@@ -41,21 +41,21 @@ fat_setLoadRegisters:
     mov     bx,ax                               ; Preserve the logical sector number  
 
     mov     dx,0                                ; First sector
-    div     word [iFAT_SectorsPerTrack]         ; edx = eax MOD SectorsPerTrack / eax = eax DIV SectorsPerTrack
+    div     word [gs:iFAT_SectorsPerTrack]      ; edx = eax MOD SectorsPerTrack / eax = eax DIV SectorsPerTrack
     add     dl,1                                ; Physical sectors start at 1 not 0
     mov     cl,dl                               ; int 13h uses cl for sectors
 
     mov     ax,bx
     mov     dx,0
-    div     word [iFAT_SectorsPerTrack]
+    div     word [gs:iFAT_SectorsPerTrack]
     mov     dx,0
-    div     word [iFAT_NumberOfHeads]
+    div     word [gs:iFAT_NumberOfHeads]
     mov     dh,dl
     mov     ch,al
 
     pop     ax
     pop     bx
-    mov     dl,byte [iFAT_DriveNo]
+    mov     dl,byte [gs:iFAT_DriveNo]
     ret
 
 
@@ -71,7 +71,7 @@ fat_doesFileExist:
     push    bp
     mov     bp,sp
     sub     sp,8                                ; bp-8
-    sub     sp,word [iFAT_BytesPerSector]       ; bp-8-512
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; bp-8-512
 
 
 
@@ -114,8 +114,8 @@ fat_findEmptyCluster:
     push    bp
     mov     bp,sp
     sub     sp,8
-    sub     sp,word [iFAT_BytesPerSector]
-    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
     push    es
     push    bx
     push    di
@@ -130,8 +130,8 @@ fat_findEmptyCluster:
 .loadNext:
     lea     bx,[bp]
     sub     bx,8
-    sub     bx,word [iFAT_BytesPerSector]
-    sub     bx,word [iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
     mov     di,bx                               ; es:di
 
     mov     ax,word [bp-8]                      ; sector_0
@@ -141,7 +141,7 @@ fat_findEmptyCluster:
     test    ax,ax
     jne     .error0 
 
-    add     di,word [iFAT_BytesPerSector]
+    add     di,word [gs:iFAT_BytesPerSector]
     mov     ax,word [bp-8]                      ; sector_1
 
     call    fat_loadFatSector                   ; 2nd sector
@@ -211,14 +211,14 @@ fat_findEmptyFileEntry:
     push    bp
     mov     bp,sp
     sub     sp,8
-    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
     pusha
     push    es                                  ; Save the destination
     push    di
     mov     bx,ss
     mov     es,bx
 
-    mov     ax,word [iFAT_BytesPerSector]
+    mov     ax,word [gs:iFAT_BytesPerSector]
     shr     ax,5
     mov     word [bp-6],ax                      ; WORD entriesPerSector
 
@@ -230,7 +230,7 @@ fat_findEmptyFileEntry:
     mov     word [bp-8],0                       ; WORD entriesIndex
 
     lea     ax,[bp]
-    sub     ax,word [iFAT_BytesPerSector]
+    sub     ax,word [gs:iFAT_BytesPerSector]
     sub     ax,8
     mov     di,ax
 
@@ -240,7 +240,7 @@ fat_findEmptyFileEntry:
     jne     .error
 
     lea     dx,[bp]
-    sub     dx,word [iFAT_BytesPerSector]
+    sub     dx,word [gs:iFAT_BytesPerSector]
     sub     dx,8                                ; dx now points to the first entry of the loaded sector
 
 .search:
@@ -357,7 +357,7 @@ fat_loadFile:
     cmp     al,1
     jne     .error2
     
-    add     bx,word [iFAT_BytesPerSector]
+    add     bx,word [gs:iFAT_BytesPerSector]
 
     mov     ax,word [bp-18]
     call    fat_findNextCluster
@@ -440,8 +440,8 @@ fat_findNextCluster:
     push    bp
     mov     bp,sp
     sub     sp,8
-    sub     sp,word [iFAT_BytesPerSector]
-    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
 
     ;cmp     ax,word [iFAT_SmallSectors]
     ;jb      .validArg
@@ -487,15 +487,15 @@ fat_findNextCluster:
 
     ; ax determines the logical sector
     xor     dx,dx
-    mov     cx,word [iFAT_BytesPerSector]
+    mov     cx,word [gs:iFAT_BytesPerSector]
     div     cx
     mov     word [bp-8],ax                      ; logical sector
 
     ; Destination to read to
     lea     bx,[bp]
     sub     bx,8
-    sub     bx,word [iFAT_BytesPerSector]
-    sub     bx,word [iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
     mov     di,bx
 
     call    fat_loadFatSector                   ; 1st sector
@@ -504,7 +504,7 @@ fat_findNextCluster:
 
     mov     ax,word [bp-8]
     add     ax,1
-    add     di,word [iFAT_BytesPerSector]
+    add     di,word [gs:iFAT_BytesPerSector]
 
     call    fat_loadFatSector                   ; 2nd sector
     test    ax,ax
@@ -566,7 +566,7 @@ fat_getEntryById:
     push    bp
     mov     bp,sp
     sub     sp,8
-    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
     pusha
     push    si
     push    es                                  ; Original destination
@@ -574,7 +574,7 @@ fat_getEntryById:
 
     cmp     ax,0
     jl      .error
-    cmp     ax,word [iFAT_MaxRootEntries]
+    cmp     ax,word [gs:iFAT_MaxRootEntries]
     jge     .error
 
     mov     bx,ss
@@ -582,7 +582,7 @@ fat_getEntryById:
 
     mov     cx,ax
 
-    mov     ax,word [iFAT_BytesPerSector]
+    mov     ax,word [gs:iFAT_BytesPerSector]
     shr     ax,5
     mov     word [bp-6],ax                      ; WORD entriesPerSector
 
@@ -595,7 +595,7 @@ fat_getEntryById:
 
 .loadSector:
     lea     cx,[bp]
-    sub     cx,word [iFAT_BytesPerSector]
+    sub     cx,word [gs:iFAT_BytesPerSector]
     sub     cx,8
     mov     di,cx
 
@@ -653,14 +653,14 @@ fat_searchEntry:
     push    bp
     mov     bp,sp
     sub     sp,8
-    sub     sp,word [iFAT_BytesPerSector]
+    sub     sp,word [gs:iFAT_BytesPerSector]
     pusha
     push    es                                  ; Save the destination
     push    di
     mov     bx,ss
     mov     es,bx
 
-    mov     ax,word [iFAT_BytesPerSector]
+    mov     ax,word [gs:iFAT_BytesPerSector]
     shr     ax,5
     mov     word [bp-6],ax                      ; WORD entriesPerSector
     
@@ -672,7 +672,7 @@ fat_searchEntry:
     mov     word [bp-8],0                       ; WORD entriesIndex
 
     lea     ax,[bp]
-    sub     ax,word [iFAT_BytesPerSector]
+    sub     ax,word [gs:iFAT_BytesPerSector]
     sub     ax,8
     mov     di,ax                               ; void * sector // Location to store the read sector
 
@@ -682,7 +682,7 @@ fat_searchEntry:
     jne     .error
 
     lea     dx,[bp]
-    sub     dx,word [iFAT_BytesPerSector]
+    sub     dx,word [gs:iFAT_BytesPerSector]
     sub     dx,8                                ; dx now points to the first entry of the loaded sector
 
 .search:
@@ -944,37 +944,37 @@ fat_strrchr:
 ;===============================================
 fat_getSizeFats:                                ; short getSizeFats( void )
     push    dx
-    movzx   ax,byte [iFAT_NumberOfFats]
-    imul    ax,word [iFAT_SectorsPerFat]
+    movzx   ax,byte [gs:iFAT_NumberOfFats]
+    imul    ax,word [gs:iFAT_SectorsPerFat]
     pop     dx
     ret
 
 
 fat_getSizeRoot:                                ; short getSizeRoot( void )
     push    dx
-    mov     ax,word [iFAT_MaxRootEntries]
+    mov     ax,word [gs:iFAT_MaxRootEntries]
     shl     ax,5                                ; 32-bytes per entry
     xor     dx,dx
-    div     word [iFAT_BytesPerSector]
+    div     word [gs:iFAT_BytesPerSector]
     pop     dx
     ret
 
 
 fat_getLogicalFat:                              ; short getLogicalFat( short idxTable )
-    imul    ax,word [iFAT_SectorsPerFat]
-    add     ax,word [iFAT_ReservedSectors]
+    imul    ax,word [gs:iFAT_SectorsPerFat]
+    add     ax,word [gs:iFAT_ReservedSectors]
     ret
 
 
 fat_getLogicalRoot:                             ; short getLogicalRoot( void )
     call    fat_getSizeFats
-    add     ax,word [iFAT_ReservedSectors]
+    add     ax,word [gs:iFAT_ReservedSectors]
     ret
 
 
 fat_getLogicalData:                             ; short getLogicalData( void )
     push    bx
-    mov     bx,word [iFAT_ReservedSectors]
+    mov     bx,word [gs:iFAT_ReservedSectors]
     call    fat_getSizeFats
     add     bx,ax
     call    fat_getSizeRoot         
@@ -986,7 +986,7 @@ fat_getLogicalData:                             ; short getLogicalData( void )
 fat_getStartFat:                                ; short fat_getStartFat( short idxTable )
     push    dx
     call    fat_getLogicalFat
-    imul    ax,word [iFAT_BytesPerSector]
+    imul    ax,word [gs:iFAT_BytesPerSector]
     ;imul    ax,word [iFAT_SectorsPerCluster]
     pop     dx
     ret
@@ -995,7 +995,7 @@ fat_getStartFat:                                ; short fat_getStartFat( short i
 fat_getStartRoot:                               ; short fat_getStartRoot( void )
     push    dx
     call    fat_getLogicalRoot
-    imul    ax,word [iFAT_BytesPerSector]
+    imul    ax,word [gs:iFAT_BytesPerSector]
     ;imul    ax,word [iFAT_SectorsPerCluster]
     pop     dx
     ret
@@ -1004,7 +1004,7 @@ fat_getStartRoot:                               ; short fat_getStartRoot( void )
 fat_getStartData:                               ; short fat_getStartData( void )
     push    dx
     call    fat_getLogicalData
-    imul    ax,word [iFAT_BytesPerSector]
+    imul    ax,word [gs:iFAT_BytesPerSector]
     ;imul    ax,word [iFAT_SectorsPerCluster]
     pop     dx
     ret
@@ -1025,7 +1025,7 @@ fat_getDebug1:
     ret
 
 fat_getDebug2:
-    mov     ax,word [iFAT_BytesPerSector]
+    mov     ax,word [gs:iFAT_BytesPerSector]
     ret
 
 
