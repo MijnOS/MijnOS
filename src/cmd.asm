@@ -80,7 +80,7 @@ main:
 
 .simpleChar:
     mov     dx,word [cmd_offset]
-    cmp     dx,BUFFER_SIZE
+    cmp     dx,BUFFER_SIZE-1
     jae     .keypress
 
     ; Store the character in the buffer

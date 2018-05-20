@@ -26,11 +26,97 @@ kernel:
     mov     si,msg_success
     call    print
 
-    ;call    fat_findEmptyCluster
+    ;call    fat_findEmptyFileEntry
     ;call    print_hex
 
     call    register_interrupts
-    call    exec_cmd
+    ;call    exec_cmd
+
+    mov     ax,0
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,1
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,2
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,3
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,4
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,5
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,6
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,7
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    
+    mov     ax,8
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,9
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,10
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,11
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    
+    mov     ax,12
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,13
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,14
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+    mov     ax,15
+    call    fat_getClusterValue
+    call    print_hex
+    call    print_newline
+
+
+
+    ;call    fat_testWrite
 
 ;.keypress:
 ;    mov     ah,00h

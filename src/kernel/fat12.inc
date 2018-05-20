@@ -29,13 +29,13 @@ iFAT_DriveNo            db 0                    ; Physical drive number
 
 
 ;===============================================
-; Sets the registers necessary for loading from disk.
+; Sets the registers necessary for disk I/O.
 ;   In:
 ;     ax - The logical sector number.
 ;   Out:
 ;     ax, ch, cl, dh, cl
 ;===============================================
-fat_setLoadRegisters:
+fat_setRegisters:
     push    bx
     push    ax
     mov     bx,ax                               ; Preserve the logical sector number  
@@ -56,6 +56,184 @@ fat_setLoadRegisters:
     pop     ax
     pop     bx
     mov     dl,byte [gs:iFAT_DriveNo]
+    ret
+
+
+
+;===============================================
+; Calculates the FAT table indices for the
+; specified logical sector number.
+;   In:
+;     ax - The logical sector number.
+;   Out:
+;     ax - Zero based table index.
+;     cx - Zero based byte offset.
+;     dx - Bit shift value.
+;===============================================
+fat_calcTableIndices:
+    push    bp
+    mov     bp,sp
+
+.validate:
+    cmp     ax,2
+    jb      .error                              ; x >= 2
+    cmp     ax,word [gs:iFAT_SmallSectors]      ; x < iFAT_SmallSectors
+    jb      .calculate
+
+.error:
+    mov     sp,bp
+    pop     bp
+    mov     ax,0FFFFh   ; -1 indicates an error
+    ret
+
+.calculate:
+    ; offset in bytes and bits
+    xor     dx,dx       ; dx:ax = ax * cx
+    mov     cx,3        ; dx = (ax % cx)
+    mul     cx          ; ax = (ax / cx)
+    mov     cx,2        ; ax = byte offset in cluster
+    div     cx          ; dx = modulo (bit-shifting)
+
+    push    ax
+    push    dx
+
+    ; offset in sectors
+    xor     dx,dx
+    mov     cx,word [gs:iFAT_BytesPerSector]
+    div     cx
+    
+    ; Final values
+    ;mov     ax,ax      ; FAT sector
+    pop     dx          ; Modulo/bit offset
+    pop     cx          ; Byte offset
+
+    ; Absolute to relative byte offset
+    push    bx
+    mov     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,1
+    and     cx,bx       ; (offset & (512-1))
+    pop     bx
+
+; ax - FAT sector; The zero-based index of the sector within the FAT table.
+; cx - Byte offset; The byte offset within the FAT sector.
+; dx - Bit offset; Bit offset for the respective entry.
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+;===============================================
+; Get the value of cluster X in the FAT.
+;   In:
+;     ax - The logical cluster number.
+;   Out:
+;     ax - The value of the FAT entry matching
+;          the logical cluster number.
+;===============================================
+fat_getClusterValue:
+    push    bp
+    mov     bp,sp
+    sub     sp,8                                ; local variables
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; FAT_0
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; FAT_1
+    pusha
+    push    es
+
+    ; Store the original logical cluster number
+    mov     word [bp-2],ax
+
+.getIndices:                                    ; Get the indices
+    call    fat_calcTableIndices
+    cmp     ax,0FFFFh
+    jne     .loadFAT
+
+.errIndices:                                    ; Could not get indices
+    pop     es
+    popa
+    mov     ax,0FF7h                            ; Bad cluster
+    mov     sp,bp
+    pop     bp
+    ret
+
+.loadFAT:                                       ; Load the two sectors
+    mov     word [bp-4],ax                      ; FAT sector
+    mov     word [bp-6],cx                      ; Byte offset
+    mov     word [bp-8],dx                      ; Bit shift
+
+    ; Set the extra segment to the stack
+    mov     bx,ss
+    mov     es,bx
+
+    ; Physical sector offset
+    mov     cx,ax
+    xor     ax,ax
+    call    fat_getLogicalFat
+    add     ax,cx
+
+    ; Set the registers to load
+    call    fat_setRegisters
+
+    ; Our buffer will be on the stack and consist of two sectors
+    lea     bx,[bp-8]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+
+    mov     ah,2        ; READ
+    mov     al,2        ; number of sectors to read
+
+    stc
+    int     13h
+    jc      .errRead    ; Read errors
+    cmp     al,2
+    je      .getValue   ; Incorrect number of sectors
+
+.errRead:                                       ; Could not read desired sectors
+    pop     es
+    popa
+    mov     ax,0FF7h                            ; Bad cluster
+    mov     sp,bp
+    pop     bp
+    ret
+
+.getValue:
+    lea     bx,[bp-8]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    mov     ax,word [bp-6]                      ; buffer[offset]
+    add     bx,ax
+
+    mov     cx,word [es:bx]                     ; value
+
+    mov     ax,word [bp-8]                      ; bit shift
+    test    ax,ax
+    je      .even
+
+.odd:
+    shr     cx,4
+
+.even:
+    and     cx,0FFFh
+    mov     word [bp-2],cx
+
+; Cleans the stack and restores the registers
+.return:
+    pop     es
+    popa
+    mov     ax,word [bp-2]
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+
+
+;===============================================
+; Set the value of cluster X in the FAT.
+;===============================================
+fat_setClusterValue:
     ret
 
 
@@ -83,6 +261,55 @@ fat_doesFileExist:
 
 
 ;===============================================
+;
+;===============================================
+fat_testWrite:
+    push    bp
+    mov     bp,sp
+    sub     sp,word [gs:iFAT_BytesPerSector]
+
+    mov     ax,1
+    call    fat_setRegisters
+    
+    mov     bx,ss
+    mov     es,bx
+    mov     bx,sp
+
+    mov     ah,03h
+    mov     al,1
+
+    stc
+    int     13h
+    jc      .error0
+    cmp     al,1
+    je      .return
+
+.error1:
+    mov     ah,0
+    call    print_hex
+    call    print_newline
+    mov     ax,0FFFDh
+    call    print_hex
+    call    print_newline
+    jmp     .return
+
+.error0:
+    mov     ah,0
+    call    print_hex
+    call    print_newline
+    mov     ax,0FFFEh
+    call    print_hex
+    call    print_newline
+
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+
+;===============================================
 ; Writes a file to the medium.
 ;   In:
 ;     ds:si - File name
@@ -94,11 +321,59 @@ fat_doesFileExist:
 fat_writeFile:
     push    bp
     mov     bp,sp
+    sub     sp,46
+    push    bx
 
-    ; 1) Check if file with that name already exists
+; Check if file with that name already exists.
+.findExisting:
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    call    fat_searchEntry                     ; Searches the root directory for a file with
+    pop     es                                  ; the given name.
+    
+    test    ax,ax
+    je      .fileExists
+
+; File does not exist, get the id of the first empty entry
+.fileNotFound:
+    call    fat_findEmptyFileEntry              ; Searches for an empty spot in the root directory
+    test    ax,0FFFFh                           ; No empty space found
+    je      .error0                             ; Otherwise, ax is now the index
+    mov     word [bp-46],ax                     ;   of the first empty spot.
+
+; TODO:
+.fillFileEntry:
+    ; 0-7   BYTE filename
+    ; 8-10  BYTE extension
+    ; 11    BYTE attributes
+    ; 12-13 WORD reserved
+    ; 14-15 WORD creationTime
+    ; 16-17 WORD creationDate
+    ; 18-19 WORD lastAccessDate
+    ; 20-21 WORD zeros
+    ; 22-23 WORD lastWriteTime
+    ; 24-25 WORD lastWriteDate
+    ; 26-27 WORD firstLogicalCluster
+    ; 28-31 DWORD fileSize
 
 
+; If it does, get the size and check if it changed, if changed
+; allocate or free FAT clusters accordingly.
+.fileExists:
+    ; When it comes here the information about the entry
+    ; is stored in the location [es:di]
+
+
+
+.writeData:
+; 3) Write the data to the allocated clusters.
+; TODO:
+
+.error0:
 .return:
+    pop     bx
     mov     sp,bp
     pop     bp
     ret
@@ -346,7 +621,7 @@ fat_loadFile:
 
 .load_loop:
     call    fat_logicalToPhysical
-    call    fat_setLoadRegisters
+    call    fat_setRegisters
 
     mov     ah,2
     mov     al,1
@@ -770,7 +1045,7 @@ fat_loadFatSector:
 
 load_generic:
     add     ax,cx
-    call    fat_setLoadRegisters
+    call    fat_setRegisters
 
     ;mov     es,si                               NOTE: Should already be set properly!
     mov     bx,di
@@ -1017,15 +1292,6 @@ fat_logicalToPhysical:
     sub     ax,2
     add     ax,cx
     pop     cx
-    ret
-
-
-fat_getDebug1:
-    mov     ax,iFAT_BytesPerSector
-    ret
-
-fat_getDebug2:
-    mov     ax,word [gs:iFAT_BytesPerSector]
     ret
 
 
