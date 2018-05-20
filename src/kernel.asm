@@ -10,6 +10,9 @@ cmd_error   db 'Could not load CMD.bin', 0Dh, 0Ah, 0
 
 kernel_var  dw 512
 
+test_err    db 'Test failed', 0Dh, 0Ah, 0
+test_var    times 32 db 0
+
 ;===============================================
 ; Entry point of the kernel module.
 ;===============================================
@@ -26,28 +29,30 @@ kernel:
     mov     si,msg_success
     call    print
 
-    ;call    fat_findEmptyFileEntry
-    ;call    print_hex
 
+    mov     bx,ds
+    mov     es,bx
+    mov     di,test_var
+
+    mov     ax,4                ; = 0x13
+    call    fat_rootGetEntry
+    test    ax,ax
+    jne     .skip
+
+    mov     si,test_var
+    mov     cx,8
+    call    printn
+    jmp     .clear
+
+.skip:
+    mov     si,test_err
+    call    print
+
+.clear:
+
+    ; Regular operations
     call    register_interrupts
     ;call    exec_cmd
-
-    mov     cx,24
-.cluster_loop:
-    mov     ax,24
-    sub     ax,cx
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-    loop    .cluster_loop
-
-
-    mov     ax,030h
-    mov     cx,0963h
-    call    fat_setClusterValue
-
-
-    ;call    fat_testWrite
 
 ;.keypress:
 ;    mov     ah,00h

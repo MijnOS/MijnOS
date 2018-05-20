@@ -496,6 +496,157 @@ fat_writeCluster:
 
 
 ;===============================================
+; Calculates the root indices for the specified
+; index number.
+;   In:
+;     ax - The index number.
+;   Out:
+;     ax - Zero based root sector index.
+;     cx - Zero based byte offset.
+;===============================================
+fat_calcRootIndices:
+    push    bp
+    mov     bp,sp
+
+.validate:
+    cmp     ax,0
+    jb      .error
+    cmp     ax,word [gs:iFAT_MaxRootEntries]
+    jb      .calculate
+
+.error:
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
+
+.calculate:
+    shl     ax,5                                ; 32-bytes per entry
+    mov     cx,word [gs:iFAT_BytesPerSector]    ; 512-bytes per sector
+
+    push    dx
+    xor     dx,dx       ; dx:ax = ax * cx
+    div     cx          ; dx = (ax % cx)
+    mov     cx,dx       ; ax = (ax / cx)
+    pop     dx
+
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+;===============================================
+; Gets a copy of the root entry.
+;   In:
+;     ax - root index
+;     es:di - Destination to store the entry.
+;   Out:
+;     ax - Zero if succesful; otherwise, a non-zero value.
+;===============================================
+fat_rootGetEntry:
+    push    bp
+    mov     bp,sp
+    sub     sp,6
+    sub     sp,word [gs:iFAT_BytesPerSector]
+    pusha
+    push    es
+    push    di
+
+.validate:
+    cmp     ax,0
+    jb      .error
+    cmp     ax,word [gs:iFAT_MaxRootEntries]
+    jb      .loadSector
+
+.error:
+    pop     di
+    pop     es
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
+
+.loadSector:
+    mov     word [bp-2],ax                      ; Store the index
+    call    fat_calcRootIndices                 ; Get the indices
+    cmp     ax,0FFFFh
+    je      .error
+
+    mov     word [bp-4],ax                      ; Sector offset
+    mov     word [bp-6],cx                      ; Byte offset
+
+    mov     dx,ax
+    call    fat_getLogicalRoot
+    add     ax,dx
+    call    fat_setRegisters
+
+    mov     bx,ss
+    mov     es,bx
+    lea     bx,[bp-6]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+
+    mov     ah,2
+    mov     al,1
+
+    stc
+    int     13h
+    jc      .error
+    cmp     al,1
+    jne     .error
+
+.copy:
+    pop     di
+    pop     es
+
+    push    ds
+    push    si
+
+    mov     bx,ss
+    mov     ds,bx
+    
+    lea     si,[bp-6]
+    sub     si,word [gs:iFAT_BytesPerSector]
+    add     si,word [bp-6]                      ; offset
+
+    mov     cx,32       ; [ds:si]
+    rep movsb           ; [es:di]
+
+    pop     si
+    pop     ds
+
+.return:
+    popa
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+;===============================================
+; Sets a root entry to the given values.
+;   In:
+;     ax - root index
+;     es:si - The entry to store onto the medium.
+;   Out:
+;     ax - Zero if succesful; otherwise, a non-zero value.
+;===============================================
+fat_rootSetEntry:
+    push    bp
+    mov     bp,sp
+
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+
+;===============================================
 ; Writes a file to the medium.
 ;   In:
 ;     es:bx - File name
@@ -505,16 +656,11 @@ fat_writeCluster:
 fat_doesFileExist:
     push    bp
     mov     bp,sp
-    sub     sp,8                                ; bp-8
-    sub     sp,word [gs:iFAT_BytesPerSector]    ; bp-8-512
-
-
 
 .return:
     mov     sp,bp
     pop     bp
     ret
-
 
 
 
