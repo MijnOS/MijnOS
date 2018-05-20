@@ -32,88 +32,19 @@ kernel:
     call    register_interrupts
     ;call    exec_cmd
 
-    mov     ax,0
+    mov     cx,24
+.cluster_loop:
+    mov     ax,24
+    sub     ax,cx
     call    fat_getClusterValue
     call    print_hex
     call    print_newline
+    loop    .cluster_loop
 
-    mov     ax,1
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
 
-    mov     ax,2
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,3
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,4
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,5
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,6
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,7
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    
-    mov     ax,8
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,9
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,10
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,11
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    
-    mov     ax,12
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,13
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,14
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
-    mov     ax,15
-    call    fat_getClusterValue
-    call    print_hex
-    call    print_newline
-
+    mov     ax,030h
+    mov     cx,0963h
+    call    fat_setClusterValue
 
 
     ;call    fat_testWrite

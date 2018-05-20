@@ -228,13 +228,170 @@ fat_getClusterValue:
 
 
 
-
-
 ;===============================================
 ; Set the value of cluster X in the FAT.
+;   In:
+;     ax - The logical cluster number.
+;     cx - The value to put into the cluster.
+;   Out:
+;     ax - Zero if succesful; otherwise, a non-zero value.
 ;===============================================
 fat_setClusterValue:
+    push    bp
+    mov     bp,sp
+    sub     sp,12                               ; local variables
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; FAT_0
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; FAT_1
+    pusha
+    push    es
+
+    ; Store the original parameters
+    mov     word [bp-2],ax
+    mov     word [bp-10],cx
+
+.getIndices:
+    call    fat_calcTableIndices
+    cmp     ax,0FFFFh
+    jne     .loadFAT
+
+.errIndices:
+    pop     es
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
     ret
+
+.loadFAT:                                       ; Load the two sectors
+    mov     word [bp-4],ax                      ; FAT sector
+    mov     word [bp-6],cx                      ; Byte offset
+    mov     word [bp-8],dx                      ; Bit shift
+
+    ; Set the extra segment to the stack
+    mov     bx,ss
+    mov     es,bx
+
+    ; Physical sector offset
+    mov     cx,ax
+    xor     ax,ax
+    call    fat_getLogicalFat
+    add     ax,cx
+    mov     word [bp-12],ax                     ; Physical sector
+
+    ; Set the registers to load
+    call    fat_setRegisters
+
+    ; Our buffer will be on the stack and consist of two sectors
+    lea     bx,[bp-12]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+
+    mov     ah,2        ; READ
+    mov     al,2        ; number of sectors to read
+
+    stc
+    int     13h
+    jc      .errRead    ; Read errors
+    cmp     al,2
+    je      .getValue   ; Incorrect number of sectors
+
+.errRead:                                       ; Could not read desired sectors
+    pop     es
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
+
+.getValue:
+    lea     bx,[bp-12]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    mov     ax,word [bp-6]                      ; buffer[offset]
+    add     bx,ax
+
+    ; The value as currently stored in the table
+    mov     cx,word [es:bx]                     ; value
+
+    ; Test whether we need to shift or not
+    mov     ax,word [bp-8]                      ; bit shift
+    test    ax,ax
+    je      .even
+
+.odd:                                           ; UPPER 12-bits
+    mov     ax,word [bp-10]
+    shl     ax,4
+    and     ax,0FFF0h   
+    and     cx,0000Fh
+    or      ax,cx
+    jmp     .write
+
+.even:                                          ; LOWER 12-bits
+    mov     ax,word [bp-10]
+    and     ax,00FFFh
+    and     cx,0F000h
+    or      ax,cx
+    jmp     .write
+
+.write:
+    ; Replace the original with the new value
+    mov     word [es:bx],ax
+
+    ; Write the loaded sectors back to the medium
+    mov     ax,word [bp-12]
+    call    fat_setRegisters
+
+    ; We need to write the entire sectors
+    lea     bx,[bp-12]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+
+    mov     ah,3
+    mov     al,2
+
+    stc
+    int     13h
+    jc      .errWrite
+    cmp     al,2
+    je      .write2
+
+.errWrite:
+    pop     es
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
+
+; FAT12 has two tables, so write it to both tables
+.write2:
+    mov     ax,word [bp-12]
+    add     ax,word [gs:iFAT_SectorsPerFat]
+    call    fat_setRegisters
+
+    ; We need to write the entire sectors
+    lea     bx,[bp-12]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+    
+    mov     ah,3
+    mov     al,2
+
+    stc
+    int     13h
+    jc      .errWrite
+    cmp     al,2
+    jne     .errWrite
+
+; Cleans the stack and restores the registers
+.return:
+    pop     es
+    popa
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
+    ret
+
 
 
 
