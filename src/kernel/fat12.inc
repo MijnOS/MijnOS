@@ -365,8 +365,15 @@ fat_setClusterValue:
 
 ; FAT12 has two tables, so write it to both tables
 .write2:
+    movzx   cx,byte [gs:iFAT_NumberOfFats]
+    sub     cx,1        ; We already wrote 1 sector
+
+.write_loop:
+    push    cx
+
     mov     ax,word [bp-12]
     add     ax,word [gs:iFAT_SectorsPerFat]
+    mov     word [bp-12],ax
     call    fat_setRegisters
 
     ; We need to write the entire sectors
@@ -379,9 +386,13 @@ fat_setClusterValue:
 
     stc
     int     13h
-    jc      .errWrite
+    jc      .errWrite2
     cmp     al,2
-    jne     .errWrite
+    jne     .errWrite2
+
+    pop     cx
+    sub     cx,1
+    jne     .write_loop
 
 ; Cleans the stack and restores the registers
 .return:
@@ -392,6 +403,95 @@ fat_setClusterValue:
     pop     bp
     ret
 
+.errWrite2:
+    pop     cx
+    jmp     .errWrite
+
+
+
+;===============================================
+; Reads a cluster to the destination.
+;   In:
+;     ax - The logical cluster number.
+;     es:di - The destination to copy the data to.
+;   Out:
+;     ax - Zero if successful; otherwise, a non-zero value.
+;===============================================
+fat_readCluster:
+    push    bp
+    mov     bp,sp
+    pusha
+
+    ; Convert the logical number into the physical
+    call    fat_logicalToPhysical
+    call    fat_setRegisters
+
+    mov     bx,di
+    mov     ah,2
+    mov     al,1
+
+    stc
+    int     13h
+    jc      .error
+    cmp     al,1
+    jne     .error
+
+.return:
+    popa
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
+    ret
+
+.error:
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
+
+
+
+;===============================================
+; Writes a cluster to the storage medium.
+;   In:
+;     ax - The logical cluster number.
+;     es:si - The data to copy.
+;   Out:
+;     ax - Zero if successful; otherwise, a non-zero value.
+;===============================================
+fat_writeCluster:
+    push    bp
+    mov     bp,sp
+    pusha
+
+    ; Convert the logical number into the physical
+    call    fat_logicalToPhysical
+    call    fat_setRegisters
+
+    mov     bx,si
+    mov     ah,3
+    mov     al,1
+
+    stc
+    int     13h
+    jc      .error
+    cmp     al,1
+    jne     .error
+
+.return:
+    popa
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
+    ret
+
+.error:
+    popa
+    mov     ax,0FFFFh
+    mov     sp,bp
+    pop     bp
+    ret
 
 
 
@@ -409,54 +509,6 @@ fat_doesFileExist:
     sub     sp,word [gs:iFAT_BytesPerSector]    ; bp-8-512
 
 
-
-.return:
-    mov     sp,bp
-    pop     bp
-    ret
-
-
-
-;===============================================
-;
-;===============================================
-fat_testWrite:
-    push    bp
-    mov     bp,sp
-    sub     sp,word [gs:iFAT_BytesPerSector]
-
-    mov     ax,1
-    call    fat_setRegisters
-    
-    mov     bx,ss
-    mov     es,bx
-    mov     bx,sp
-
-    mov     ah,03h
-    mov     al,1
-
-    stc
-    int     13h
-    jc      .error0
-    cmp     al,1
-    je      .return
-
-.error1:
-    mov     ah,0
-    call    print_hex
-    call    print_newline
-    mov     ax,0FFFDh
-    call    print_hex
-    call    print_newline
-    jmp     .return
-
-.error0:
-    mov     ah,0
-    call    print_hex
-    call    print_newline
-    mov     ax,0FFFEh
-    call    print_hex
-    call    print_newline
 
 .return:
     mov     sp,bp
