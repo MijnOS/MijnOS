@@ -29,52 +29,28 @@ kernel:
     mov     si,msg_success
     call    print
 
-;.draw_start:
-;    mov     ah,0        ; change video mode
-;    mov     al,13h      ; 13h = VGA 16-colors 320x200 / 03h = Text 80x25 16-colors
-;    int     10h
-
-;    mov     dx,198      ; y
-;.loop_0:
-;    mov     cx,318      ; x
-;.loop_1:
-;    mov     al,00Fh     ; Full white
-;    mov     bh,0
-;    mov     ah,0Ch
-;    int     10h
-
-;    sub     cx,1
-;    jne     .loop_1
-
-;    sub     dx,1
-;    jne     .loop_0
-;.draw_end:
-;    mov     ah,0        ; change video mode
-;    mov     al,03h      ; 13h = VGA 16-colors 320x200 / 03h = Text 80x25 16-colors
-;    int     10h
-
-    mov     bx,ds
-    mov     es,bx
-    mov     di,test_var
-
-    mov     ax,2                    ; CMD.BIN
-    call    fat_rootGetEntry
-    test    ax,ax
-    jne     .skip
-
-    mov     si,test_var
-    mov     cx,8
-    call    printn
-
-    mov     byte [ds:si],041h
-    mov     ax,2
-    call    fat_rootSetEntry
-    test    ax,ax
-    je      .clear
-
-.skip:
-    mov     si,test_err
-    call    print
+;    mov     bx,ds
+;    mov     es,bx
+;    mov     di,test_var
+;
+;    mov     ax,2                    ; CMD.BIN
+;    call    fat_rootGetEntry
+;    test    ax,ax
+;    jne     .skip
+;
+;    mov     si,test_var
+;    mov     cx,8
+;    call    printn
+;
+;    mov     byte [ds:si],041h
+;    mov     ax,2
+;    call    fat_rootSetEntry
+;    test    ax,ax
+;    je      .clear
+;
+;.skip:
+;    mov     si,test_err
+;    call    print
 
 .clear:
 
@@ -82,7 +58,7 @@ kernel:
 
     ; Regular operations
     call    register_interrupts
-    ;call    exec_cmd
+    call    exec_cmd
 
 ;.keypress:
 ;    mov     ah,00h
@@ -184,6 +160,10 @@ kernel_interrupts:
     je      .loadFile
     cmp     ax,INT_EXEC_PROGRAM
     je      .execProgram
+    cmp     ax,INT_GPU_GRAPHICS
+    je      .gpuGraphics
+    cmp     ax,INT_GPU_TEXT
+    je      .gpuText
 
     cmp     ax,INT_KEYPRESS
     je      .getChar
@@ -191,6 +171,11 @@ kernel_interrupts:
     je      .getCursorPos
     cmp     ax,INT_SET_CURSOR_POS
     je      .setCursorPos
+
+    cmp     ax,INT_DRAW_PIXEL
+    je      .drawPixel
+    cmp     ax,INT_DRAW_BUFFER
+    je      .drawBuffer
 
     cmp     ax,INT_CLEAR_SCREEN
     je      .clearScreen
@@ -227,6 +212,24 @@ kernel_interrupts:
     ;   that point onwards.
     jmp     .return
 
+; void func(void)
+.gpuGraphics:
+    push    ax
+    mov     ah,0
+    mov     al,13h      ; VGA / 16-colors / 320x200
+    int     10h
+    pop     ax
+    jmp     .return
+
+; void func(void)
+.gpuText:
+    push    ax
+    mov     ah,0
+    mov     al,03h      ; Text / 16-colors / 80x25
+    int     10h
+    pop     ax
+    jmp     .return
+
 ; short ax getChar( void )
 .getChar:
     mov     ah,00h
@@ -248,6 +251,25 @@ kernel_interrupts:
     ;mov     dh,byte [row]
     ;mov     dl,byte [column]
     int     10h
+    jmp     .return
+
+; ax = INT_DRAW_PIXEL
+; bx = color
+; cx = x-pos
+; dx = y-pos
+.drawPixel:
+    push    ax
+    push    bx
+    mov     ah,0Ch
+    mov     al,bl
+    xor     bx,bx
+    int     10h
+    pop     bx
+    pop     ax
+    jmp     .return
+
+.drawBuffer:
+    ; TODO:
     jmp     .return
 
 

@@ -5,7 +5,7 @@ jmp main
 
 %include "src\const.inc"
 %define BUFFER_SIZE     64
-msg_cmd     db 'MijnOS CMD 2018-04-29', 0Dh, 0Ah, 0
+msg_cmd     db 'MijnOS CMD 2018-05-21', 0Dh, 0Ah, 0
 cmd_buffer  times BUFFER_SIZE db 0              ; Buffer the user writes to when pressing a key
 cmd_fpath   times 12 db 020h                    ; Buffer containing the file name to load
 cmd_ferr    dw 0FFh                             ; Load error code
@@ -281,6 +281,12 @@ cmd_callProgram:
     pop     ds
     pop     es
     popa
+
+    ; 5) Restore GUP to text mode
+    push    ax
+    mov     ax,INT_GPU_TEXT
+    int     70h
+    pop     ax
 
     ret
 

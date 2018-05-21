@@ -28,10 +28,15 @@
 %define INT_RESERVED        0
 %define INT_LOAD_FILE       1
 %define INT_EXEC_PROGRAM    2
+%define INT_GPU_GRAPHICS    3                   ; VGA / 16-colors / 320x200 pixels
+%define INT_GPU_TEXT        4                   ; Text / 16-colors / 80x25 characters
 
 %define INT_KEYPRESS        8
 %define INT_GET_CURSOR_POS  9
 %define INT_SET_CURSOR_POS  0Ah
+
+%define INT_DRAW_PIXEL      0Dh
+%define INT_DRAW_BUFFER     0Eh
 
 %define INT_CLEAR_SCREEN    10h
 %define INT_PRINT_STRING    11h
