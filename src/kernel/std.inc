@@ -32,6 +32,15 @@ print_char:
 
 
 ;===============================================
+; Prints a single character with attributes.
+;===============================================
+print_colored:
+    mov     ah,09h
+    int     10h
+    ret
+
+
+;===============================================
 ; Prints a string till either the null-terminator
 ; or the maximum, n, has been reached.
 ;   void print( const char * str, short n )

@@ -189,6 +189,8 @@ kernel_interrupts:
     je      .printNewLine
     cmp     ax,INT_PRINTN_STRING
     je      .printNString
+    cmp     ax,INT_PRINT_COLORED
+    je      .printColored
 
 .return:
     pop     gs
@@ -321,6 +323,14 @@ kernel_interrupts:
     call    printn
     jmp     .return
 
+.printColored:
+    pusha
+    mov     ax,cx
+    mov     cx,1
+    mov     bh,0
+    call    print_colored
+    popa
+    jmp     .return
 
 
 ;===========

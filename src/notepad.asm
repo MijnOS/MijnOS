@@ -6,7 +6,8 @@ jmp main
 %define BUFFER_SIZE     1024
 text_buffer times BUFFER_SIZE db 0              ; Buffer the user writes to when pressing a key
 text_size   dw 0                                ; Number of characters currently in the buffer
-text_quit   dw 0                                ; Should notepad quit/terminate?
+text_quit   db 0                                ; Should notepad quit/terminate?
+text_menu   db 0                                ; Should the menu be displayed
 text_bbuf   db 08h, 20h, 08h, 0                 ; Instructions for backspace
 
 ;===============================================
@@ -15,6 +16,13 @@ text_bbuf   db 08h, 20h, 08h, 0                 ; Instructions for backspace
 main:
     push    si
     push    ax
+
+.init:
+    mov     ax,INT_CLEAR_SCREEN
+    int     70h                                 ; Ensure te screen is clear
+    xor     dx,dx
+    mov     ax,INT_SET_CURSOR_POS
+    int     70h                                 ; Ensure we are top-left
 
 .loop:
     mov     ax,INT_KEYPRESS
@@ -32,21 +40,14 @@ main:
     call    np_complexChar
 
 .continue:
-    ; test
-    xor     dx,dx
-    mov     dh,5
-    mov     ax,INT_SET_CURSOR_POS
-    int     70h
-
-    mov     ax,word [text_quit]
-    test    ax,ax
+    movzx   cx,byte [text_quit]                 ; Quit notepad
+    test    cx,cx
     je      .loop
 
 .exit:
     pop     ax
     pop     si
     retf
-
 
 
 ;===============================================
@@ -244,7 +245,65 @@ np_keyNewline:
 ; Menu + options
 ;===============================================
 np_keyEscape:
-    mov     word [text_quit],1
+    mov     byte [text_menu],0FFh
+
+.active:
+    ; Move the cursor to the lower-left corner
+    mov     dh,24       ; row
+    mov     dl,0        ; column
+    mov     ax,INT_SET_CURSOR_POS
+    int     70h
+
+    ; Print a colored character
+    mov     bx,070h
+    mov     cx,03Ah
+    mov     ax,INT_PRINT_COLORED
+    int     70h
+
+; Menu loop
+.loop:
+    mov     ax,INT_KEYPRESS
+    int     70h
+    mov     cx,ax
+    mov     bx,070h
+    mov     ax,INT_PRINT_COLORED
+    int     70h
+
+; Menu options can be caught here
+    cmp     cx,KEY_UC_Q                         ; QUIT
+    je      .quit
+    cmp     cx,KEY_LC_Q
+    je      .quit
+
+    cmp     cx,KEY_UC_W                         ; WRITE
+    je      .m_write    
+    cmp     cx,KEY_LC_W
+    je      .m_write
+
+    cmp     cx,KEY_UC_O                         ; OPEN
+    je      .m_open
+    cmp     cx,KEY_LC_O
+    je      .m_open
+
+    cmp     cx,KEY_ESCAPE                       ; Close the menu
+    je      .closeMenu
+
+    jmp     .loop                               ; Default
+
+.m_write:
+.m_open:
+    ; TODO:
+    jmp     .loop
+
+.closeMenu:
+    mov     byte [text_menu],0
+    jmp     .return
+
+.quit:
+    mov     byte [text_quit],1
+    jmp     .return
+
+.return:
     ret
 
 

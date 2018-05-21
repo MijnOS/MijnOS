@@ -44,6 +44,7 @@
 %define INT_PRINT_CHAR      13h
 %define INT_PRINT_NEWLINE   14h
 %define INT_PRINTN_STRING   15h
+%define INT_PRINT_COLORED   16h
 
 
 
