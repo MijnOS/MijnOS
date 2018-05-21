@@ -637,12 +637,113 @@ fat_rootGetEntry:
 fat_rootSetEntry:
     push    bp
     mov     bp,sp
+    sub     sp,6
+    sub     sp,word [gs:iFAT_BytesPerSector]
+    pusha
+    push    es
+    push    si
 
-.return:
+.validate:
+    cmp     ax,0
+    jb      .error
+    cmp     ax,word [gs:iFAT_MaxRootEntries]
+    jb      .loadSector
+
+.error:
+    pop     si
+    pop     es
+    popa
+    mov     ax,0FFFFh
     mov     sp,bp
     pop     bp
     ret
 
+.loadSector:
+    mov     word [bp-2],ax                      ; Store the index
+    call    fat_calcRootIndices                 ; Get the indices
+    cmp     ax,0FFFFh
+    je      .error
+
+    mov     word [bp-4],ax                      ; Sector offset
+    mov     word [bp-6],cx                      ; Byte offset
+
+    mov     dx,ax
+    call    fat_getLogicalRoot
+    add     ax,dx
+    call    fat_setRegisters
+
+    mov     bx,ss
+    mov     es,bx
+    lea     bx,[bp-6]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+
+    mov     ah,2
+    mov     al,1
+
+    stc
+    int     13h
+    jc      .error
+    cmp     al,1
+    jne     .error
+
+.copy:                  ; Copy input to the stack buffer
+    pop     si
+    pop     es          ; Restore the source address
+
+    push    ds          ; Keep a copy of them all
+    push    es
+    push    si
+    push    di
+
+    mov     bx,es       ; Source [ds:si]
+    mov     ds,bx
+
+    mov     bx,ss       ; Destination [es:di]
+    mov     es,bx
+    
+    lea     di,[bp-6]
+    sub     di,word [gs:iFAT_BytesPerSector]
+    add     di,word [bp-6]                      ; offset
+
+    mov     cx,32       ; [ds:si]
+    rep movsb           ; [es:di]
+
+    pop     di
+    pop     si
+    pop     es
+    pop     ds
+
+    push    es          ; Store the original on the stack once more
+    push    si
+
+.write:                                         ; Write the changes onto the disk
+    mov     dx,word [bp-4]                      ; sector offset
+    call    fat_getLogicalRoot
+    add     ax,dx
+    call    fat_setRegisters
+
+    mov     bx,ss
+    mov     es,bx
+    lea     bx,[bp-6]
+    sub     bx,word [gs:iFAT_BytesPerSector]
+
+    mov     ah,3
+    mov     al,1
+
+    stc
+    int     13h
+    jc      .error
+    cmp     al,1
+    jne     .error
+
+.return:
+    pop     si
+    pop     es
+    popa
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
+    ret
 
 
 

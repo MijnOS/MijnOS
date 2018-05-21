@@ -29,12 +29,35 @@ kernel:
     mov     si,msg_success
     call    print
 
+;.draw_start:
+;    mov     ah,0        ; change video mode
+;    mov     al,13h      ; 13h = VGA 16-colors 320x200 / 03h = Text 80x25 16-colors
+;    int     10h
+
+;    mov     dx,198      ; y
+;.loop_0:
+;    mov     cx,318      ; x
+;.loop_1:
+;    mov     al,00Fh     ; Full white
+;    mov     bh,0
+;    mov     ah,0Ch
+;    int     10h
+
+;    sub     cx,1
+;    jne     .loop_1
+
+;    sub     dx,1
+;    jne     .loop_0
+;.draw_end:
+;    mov     ah,0        ; change video mode
+;    mov     al,03h      ; 13h = VGA 16-colors 320x200 / 03h = Text 80x25 16-colors
+;    int     10h
 
     mov     bx,ds
     mov     es,bx
     mov     di,test_var
 
-    mov     ax,4                ; = 0x13
+    mov     ax,2                    ; CMD.BIN
     call    fat_rootGetEntry
     test    ax,ax
     jne     .skip
@@ -42,13 +65,20 @@ kernel:
     mov     si,test_var
     mov     cx,8
     call    printn
-    jmp     .clear
+
+    mov     byte [ds:si],041h
+    mov     ax,2
+    call    fat_rootSetEntry
+    test    ax,ax
+    je      .clear
 
 .skip:
     mov     si,test_err
     call    print
 
 .clear:
+
+
 
     ; Regular operations
     call    register_interrupts
