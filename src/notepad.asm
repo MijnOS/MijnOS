@@ -6,13 +6,16 @@ jmp main
 %define BUFFER_SIZE     1024
 text_buffer times BUFFER_SIZE db 0              ; Buffer the user writes to when pressing a key
 text_size   dw 0                                ; Number of characters currently in the buffer
-text_quit   db 0                                ; Should notepad quit/terminate?
-text_menu   db 0                                ; Should the menu be displayed
+opt_quit    db 0                                ; Should notepad quit/terminate?
+opt_menu    db 0                                ; Should the menu be displayed
 text_bbuf   db 08h, 20h, 08h, 0                 ; Instructions for backspace
 file_str    db 'FILE: ', 0
 file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl. zst
 .length     dw ($-$$)                           ; Length of the buffer
 .count      dw 0                                ; Number of written characters
+cursor_pos  dw 0                                ; Cursor position
+%define MENU_COLOR  070h
+
 
 ;===============================================
 ; Entry point
@@ -29,24 +32,33 @@ main:
     int     70h                                 ; Ensure we are top-left
 
 .loop:
-    mov     ax,INT_KEYPRESS
+    mov     cl,byte [opt_menu]                  ; Opt. 1) Check if the menu is opened
+    test    cl,cl
+    jne     .h_menu
+
+    mov     cl,byte [opt_quit]                  ; Opt. 2) Quit the editor?
+    test    cl,cl
+    jne     exit
+
+    mov     ax,INT_KEYPRESS                     ; 1) Wait for a key.
     int     70h
 
-.stage1:                                        ; 1) Simple, human readable
+.stage1:                                        ; Check the key
     cmp     ax,20h
     jb      .stage2
     cmp     ax,7Fh
     jae     .stage2
-    call    np_simpleChar
+    call    np_simpleChar                       ; It's a simple character
     jmp     .loop
 
-.stage2:                                        ; 2) Complex, control characters
+.stage2:                                        ; Opt. 2) Complex, control characters
     call    np_complexChar
+    jmp     .loop
 
-.continue:
-    movzx   cx,byte [text_quit]                 ; Quit notepad
-    test    cx,cx
-    je      .loop
+.h_menu:
+    call    handle_menu
+    jmp     .loop
+
 
 ; NOTE:
 ;   The dot is missing so we can exit from
@@ -58,7 +70,28 @@ exit:
 
 
 ;===============================================
-; [0x20, 0x7F)
+; Stores the cursor position.
+;===============================================
+util_setCursor:
+    mov     ax,INT_GET_CURSOR_POS
+    int     70h
+    mov     word [cursor_pos],dx
+    ret
+
+
+;===============================================
+; Restores the cursor position.
+;===============================================
+util_getCursor:
+    mov     dx,word [cursor_pos]
+    mov     ax,INT_SET_CURSOR_POS
+    int     70h
+    ret
+
+
+;===============================================
+; Copies characters in the range of [0x20, 0x7F)
+; into the buffer and displays them on screen.
 ;===============================================
 np_simpleChar:
     mov     cx,word [text_size]
@@ -80,9 +113,9 @@ np_simpleChar:
     ret
 
 
-
 ;===============================================
-; Control characters
+; Control characters, these require special
+; functions to handle properly.
 ;===============================================
 np_complexChar:
 
@@ -127,7 +160,9 @@ np_complexChar:
 
 
 ;===============================================
-; Remove the last character from the buffer.
+; Remove the last character from the buffer; and
+; removed the the respective character(s) from
+; the screen.
 ;===============================================
 np_keyBackspace:
     mov     cx,word [text_size]
@@ -193,7 +228,6 @@ np_keyBackspace:
 
 
 
-
 ;===============================================
 ; TABs can be insert like a normal character.
 ;===============================================
@@ -249,10 +283,19 @@ np_keyNewline:
 
 
 ;===============================================
-; Menu + options
+; Set the menu open flag
 ;===============================================
 np_keyEscape:
-    mov     byte [text_menu],0FFh
+    mov     byte [opt_menu],1
+    ret
+
+
+
+;===============================================
+; Menu + options
+;===============================================
+handle_menu:
+
 
 .active:
     ; Move the cursor to the lower-left corner
@@ -261,26 +304,28 @@ np_keyEscape:
     mov     ax,INT_SET_CURSOR_POS
     int     70h
 
-    ; Print a colored character
-    mov     bx,070h
-    mov     cx,03Ah
+    ; Print the menu prefix
+    mov     bx,MENU_COLOR
+    mov     cx,03Ah                             ; ':'
     mov     ax,INT_PRINT_COLORED
     int     70h
 
 ; Menu loop
 .loop:
-    mov     ax,INT_KEYPRESS
+    mov     ax,INT_KEYPRESS                     ; 1) Wait for a key press
     int     70h
+
+    ; Display the typed character
     mov     cx,ax
-    mov     bx,070h
-    mov     ax,INT_PRINT_COLORED
-    int     70h
+    ;mov     bx,MENU_COLOR
+    ;mov     ax,INT_PRINT_COLORED
+    ;int     70h
 
 ; Menu options can be caught here
     cmp     cx,KEY_UC_Q                         ; QUIT
-    je      .quit
+    je      .m_quit
     cmp     cx,KEY_LC_Q
-    je      .quit
+    je      .m_quit
 
     cmp     cx,KEY_UC_W                         ; WRITE
     je      .m_write    
@@ -293,34 +338,35 @@ np_keyEscape:
     je      .m_open
 
     cmp     cx,KEY_ESCAPE                       ; Close the menu
-    je      .closeMenu
+    je      .m_close
 
     jmp     .loop                               ; Default
 
+; Write to filename
 .m_write:
     ; TODO:
-    mov     si,file_str
-    mov     ax,INT_PRINT_STRING
-    int     70h
-    jmp     .loop
+    call    fn_typing
+    je      .loop
+    jmp     .m_close
 
+; Open from filename
 .m_open:
     ; TODO:
-    mov     si,file_str
-    mov     ax,INT_PRINT_STRING
-    int     70h
-    jmp     .loop
+    call    fn_typing
+    je      .loop
+    jmp     .m_close
 
-.closeMenu:
-    mov     byte [text_menu],0
-    jmp     .return
 
-.quit:
-    mov     byte [text_quit],1
-    jmp     .return
+; Quit the application
+.m_quit:
+    mov     byte [opt_quit],1
 
-.return:
+; Close the menu and quit
+.m_close:
+    mov     byte [opt_menu],0
     ret
+
+
 
 
 
@@ -328,13 +374,11 @@ np_keyEscape:
 ; Loops till the filename has been written
 ;===============================================
 fn_typing:
-    call    menu_clear
-
-.loop:
     mov     si,file_str
     mov     ax,INT_PRINT_STRING
     int     70h
 
+.loop:
     mov     ax,INT_KEYPRESS
     int     70h
 
@@ -348,7 +392,13 @@ fn_typing:
     je      .back
 
     call    fn_append
-    jne     .continue
+    cmp     ax,0
+    je      .continue
+
+    mov     cx,ax
+    mov     bx,MENU_COLOR
+    mov     ax,INT_PRINT_COLORED
+    int     70h
 
 .continue:
     jmp     .loop
@@ -356,17 +406,21 @@ fn_typing:
 .back:
     mov     bx,word [file_buff.count]
     sub     bx,1
-    mov     byte [file_buff.count],0
+    cmp     bx,0
+    jl      .loop                               ; Do nothing when there is nothing
+    mov     byte [file_buff+bx],0
     mov     word [file_buff.count],bx
+    mov     si,text_bbuf                        ; Remove the character from the screen
+    mov     ax,INT_PRINT_STRING
+    int     70h
     jmp     .loop
 
 .escape:
-    mov     byte [text_menu],0
+    mov     byte [opt_menu],0
 
 .return:
     mov     ax,0FFFFh
     ret
-
 
 .action:
     xor     ax,ax
@@ -377,6 +431,9 @@ fn_typing:
 ; Appends the filename with the specified character
 ;===============================================
 fn_append:
+    push    bp
+    mov     bp,sp
+    sub     sp,2
     pusha
 
 ; lowercase
@@ -398,11 +455,20 @@ fn_append:
 ; append the character to the buffer
 .append:
     mov     bx,word [file_buff.count]
+    mov     dx,bx
+    add     dx,1
+    cmp     dx,word [file_buff.length]
+    jae     .return
+
     mov     byte [file_buff+bx],al
     add     bx,1
     mov     word [file_buff.count],bx
+
+    mov     word [bp-2],ax
     popa
-    xor     ax,ax
+    mov     ax,word [bp-2]
+    mov     sp,bp
+    pop     bp
     ret
 
 ; period, extension sep
@@ -412,35 +478,12 @@ fn_append:
 
 .return:
     popa
-    mov     ax,0FFFFh
+    xor     ax,ax
+    mov     sp,bp
+    pop     bp
     ret
 
 
-
-;===============================================
-; Clears the menu bar
-;===============================================
-menu_str    times 80 db 020h
-menu_clear:
-    pusha
-
-    mov     cx,79
-.loop:
-    ; Move the cursor to the lower-left corner
-    mov     dh,24       ; row
-    mov     dl,cl       ; column
-    mov     ax,INT_SET_CURSOR_POS
-    int     70h
-
-    ; Print a colored character
-    mov     cx,020h
-    mov     ax,INT_PRINT_CHAR
-    int     70h
-
-    loop    .loop
-
-    popa
-    ret
 
 ;===============================================
 ; Zero fills the filename buffer

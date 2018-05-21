@@ -120,7 +120,7 @@ bool g_defragment;                  /* Defragments the input volume */
 std::queue<char*> g_queue;          /* All the input file names */
 
 
-#define FILE_BUFFER_SIZE  4096      /* Increase if necessary */
+#define FILE_BUFFER_SIZE  0x11000      /* Increase if necessary */
 char g_bufferFileData[FILE_BUFFER_SIZE];    /* Allocations exceeed max */
 
 

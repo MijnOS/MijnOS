@@ -270,8 +270,30 @@ kernel_interrupts:
     pop     ax
     jmp     .return
 
-.drawBuffer:
-    ; TODO:
+; ax = INT_DRAW_BUFFER
+; es:bx = source buffer
+.drawBuffer:            ; TODO:
+    pusha
+    push    ds
+    push    es
+
+    ; Offsets
+    mov     si,bx
+    xor     di,di
+
+    ; Setup the new segments
+    mov     bx,es       ; Source buffer
+    mov     ds,bx
+    mov     bx,0A000h   ; Video memory
+    mov     es,bx
+
+    ; The count
+    mov     cx,(160*100)        ; All the pixels
+    rep movsb
+
+    pop     es
+    pop     ds
+    popa
     jmp     .return
 
 

@@ -37,7 +37,7 @@ print_char:
 print_colored:
     mov     ah,09h
     int     10h
-    ret     ; FIXME:
+    ;ret     ; FIXME:
 
     ; colored does not advance the cursor, as
     ; such advance it manually.
@@ -64,6 +64,7 @@ print_colored:
 
 .set:
     xor     bx,bx
+    mov     ah,02h
     int     10h
     ret
 

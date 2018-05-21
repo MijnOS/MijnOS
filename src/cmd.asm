@@ -263,7 +263,7 @@ cmd_callProgram:
     mov     ax,SEG_PROGRAM
     mov     ds,ax
     mov     es,ax
-    add     ax,100h     ; 4kb
+    sub     ax,100h     ; 4kb stack BEFORE the program
     mov     ss,ax
     mov     sp,1000h    ; 4kb
 

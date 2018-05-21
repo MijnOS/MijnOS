@@ -9,8 +9,8 @@
 %define SEG_KERNEL_STACK            0EE0h       ; 16.384 bytes
 %define SEG_CMD                     12E0h       ;  4.096 bytes
 %define SEG_CMD_STACK               13E0h       ;  4.096 bytes
-%define SEG_PROGRAM                 14E0h       ;  4.096 bytes
-%define SEG_PROGRAM_STACK           15E0h       ;  4.096 bytes
+%define SEG_PROGRAM_STACK           14E0h       ;  4.096 bytes
+%define SEG_PROGRAM                 15E0h       ; variable, allows for lots of bytes incl. video memory
 
 ; NOTES:
 ;  - Bootloader is always at this address and 512-bytes in size
