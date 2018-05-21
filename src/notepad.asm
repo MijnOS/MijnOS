@@ -9,6 +9,10 @@ text_size   dw 0                                ; Number of characters currently
 text_quit   db 0                                ; Should notepad quit/terminate?
 text_menu   db 0                                ; Should the menu be displayed
 text_bbuf   db 08h, 20h, 08h, 0                 ; Instructions for backspace
+file_str    db 'FILE: ', 0
+file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl. zst
+.length     dw ($-$$)                           ; Length of the buffer
+.count      dw 0                                ; Number of written characters
 
 ;===============================================
 ; Entry point
@@ -44,7 +48,10 @@ main:
     test    cx,cx
     je      .loop
 
-.exit:
+; NOTE:
+;   The dot is missing so we can exit from
+;   anywhere within the program.
+exit:
     pop     ax
     pop     si
     retf
@@ -291,8 +298,17 @@ np_keyEscape:
     jmp     .loop                               ; Default
 
 .m_write:
+    ; TODO:
+    mov     si,file_str
+    mov     ax,INT_PRINT_STRING
+    int     70h
+    jmp     .loop
+
 .m_open:
     ; TODO:
+    mov     si,file_str
+    mov     ax,INT_PRINT_STRING
+    int     70h
     jmp     .loop
 
 .closeMenu:
@@ -304,6 +320,141 @@ np_keyEscape:
     jmp     .return
 
 .return:
+    ret
+
+
+
+;===============================================
+; Loops till the filename has been written
+;===============================================
+fn_typing:
+    call    menu_clear
+
+.loop:
+    mov     si,file_str
+    mov     ax,INT_PRINT_STRING
+    int     70h
+
+    mov     ax,INT_KEYPRESS
+    int     70h
+
+    cmp     ax,KEY_ENTER
+    je      .action
+
+    cmp     ax,KEY_ESCAPE
+    je      .escape
+
+    cmp     ax,KEY_BACKSPACE
+    je      .back
+
+    call    fn_append
+    jne     .continue
+
+.continue:
+    jmp     .loop
+
+.back:
+    mov     bx,word [file_buff.count]
+    sub     bx,1
+    mov     byte [file_buff.count],0
+    mov     word [file_buff.count],bx
+    jmp     .loop
+
+.escape:
+    mov     byte [text_menu],0
+
+.return:
+    mov     ax,0FFFFh
+    ret
+
+
+.action:
+    xor     ax,ax
+    ret
+
+
+;===============================================
+; Appends the filename with the specified character
+;===============================================
+fn_append:
+    pusha
+
+; lowercase
+.0:
+    cmp     ax,KEY_LC_A
+    jl      .1
+    cmp     ax,KEY_LC_Z
+    ja      .return     ; Invalid
+    sub     ax,020h
+    jmp     .append
+
+; uppercase
+.1:
+    cmp     ax,KEY_UC_A
+    jl      .2
+    cmp     ax,KEY_UC_Z
+    ja      .return
+
+; append the character to the buffer
+.append:
+    mov     bx,word [file_buff.count]
+    mov     byte [file_buff+bx],al
+    add     bx,1
+    mov     word [file_buff.count],bx
+    popa
+    xor     ax,ax
+    ret
+
+; period, extension sep
+.2:
+    cmp     ax,KEY_PERIOD
+    je      .append
+
+.return:
+    popa
+    mov     ax,0FFFFh
+    ret
+
+
+
+;===============================================
+; Clears the menu bar
+;===============================================
+menu_str    times 80 db 020h
+menu_clear:
+    pusha
+
+    mov     cx,79
+.loop:
+    ; Move the cursor to the lower-left corner
+    mov     dh,24       ; row
+    mov     dl,cl       ; column
+    mov     ax,INT_SET_CURSOR_POS
+    int     70h
+
+    ; Print a colored character
+    mov     cx,020h
+    mov     ax,INT_PRINT_CHAR
+    int     70h
+
+    loop    .loop
+
+    popa
+    ret
+
+;===============================================
+; Zero fills the filename buffer
+;===============================================
+fn_clear:
+    pusha
+    mov     cx,word [file_buff.length]
+.loop:
+    mov     bx,cx
+    sub     bx,1
+    add     bx,file_buff
+    mov     byte [bx],0
+    loop    .loop
+    popa
     ret
 
 

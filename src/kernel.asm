@@ -309,8 +309,12 @@ kernel_interrupts:
 
 ; void printChar( char cl )
 .printChar:
+    pusha
+    mov     bh,0
+    mov     bl,7
     mov     ax,cx
     call    print_char
+    popa
     jmp     .return
 
 ; void printNewLine( void )

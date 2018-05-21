@@ -37,6 +37,34 @@ print_char:
 print_colored:
     mov     ah,09h
     int     10h
+    ret     ; FIXME:
+
+    ; colored does not advance the cursor, as
+    ; such advance it manually.
+    xor     bx,bx
+    mov     ah,03h
+    int     10h
+
+    ; Ensure we do not reach beyond the screen
+    cmp     dl,79
+    je      .fold
+    add     dl,1
+    jmp     .set
+
+    ; Fold the line
+.fold:
+    mov     dl,0
+    cmp     dh,24
+    jne     .increase
+    mov     dh,0
+    jmp     .set
+
+.increase:
+    add     dh,1
+
+.set:
+    xor     bx,bx
+    int     10h
     ret
 
 
