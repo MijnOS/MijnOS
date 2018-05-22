@@ -300,23 +300,30 @@ kernel_interrupts:
 ; void clearScreen( void )
 .clearScreen:
     push    ax
-    push    bx
-    xor     ax,ax
-    xor     bx,bx
-    mov     bh,0
-    mov     ah,2
-    mov     dh,24       ; HEIGHT: 25-characters
-    mov     dl,79       ; WIDTH : 80-characters
+    mov     al,3
+    mov     ah,0
     int     10h
-    pop     bx
     pop     ax
-    push    cx
-    mov     cx,25
-.continue:
-    call    print_newline
-    loop    .continue
-    pop     cx
-    jmp     .return
+    jmp     .return     ; Cleared using video reset
+
+;    push    ax          ; Clearing using \r\n
+;    push    bx
+;    xor     ax,ax
+;    xor     bx,bx
+;    mov     bh,0
+;    mov     ah,2
+;    mov     dh,24       ; HEIGHT: 25-characters
+;    mov     dl,79       ; WIDTH : 80-characters
+;    int     10h
+;    pop     bx
+;    pop     ax
+;    push    cx
+;    mov     cx,25
+;.continue:
+;    call    print_newline
+;    loop    .continue
+;    pop     cx
+;    jmp     .return
 
 ; void printString( char * ds:si )
 .printString:

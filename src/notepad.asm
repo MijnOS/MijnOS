@@ -5,6 +5,7 @@ jmp main
 %include "src\const.inc"
 %define BUFFER_SIZE     1024
 text_buffer times BUFFER_SIZE db 0              ; Buffer the user writes to when pressing a key
+text_double times BUFFER_SIZE db 0              ; Double buffer for redraws
 text_size   dw 0                                ; Number of characters currently in the buffer
 opt_quit    db 0                                ; Should notepad quit/terminate?
 opt_menu    db 0                                ; Should the menu be displayed
@@ -15,6 +16,7 @@ file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl
 .count      dw 0                                ; Number of written characters
 cursor_pos  dw 0                                ; Cursor position
 %define MENU_COLOR  070h
+text_ferr   dw 0
 
 
 ;===============================================
@@ -43,16 +45,8 @@ main:
     mov     ax,INT_KEYPRESS                     ; 1) Wait for a key.
     int     70h
 
-.stage1:                                        ; Check the key
-    cmp     ax,20h
-    jb      .stage2
-    cmp     ax,7Fh
-    jae     .stage2
-    call    np_simpleChar                       ; It's a simple character
-    jmp     .loop
-
-.stage2:                                        ; Opt. 2) Complex, control characters
-    call    np_complexChar
+.raw:
+    call    np_drawChar
     jmp     .loop
 
 .h_menu:
@@ -87,6 +81,23 @@ util_getCursor:
     mov     ax,INT_SET_CURSOR_POS
     int     70h
     ret
+
+
+;===============================================
+; Draws the character to the screen if necessary
+;===============================================
+np_drawChar:
+    cmp     ax,20h
+    jb      .complex
+    cmp     ax,7Fh
+    jae     .complex
+    call    np_simpleChar                       ; Opt. 1) It's a simple character
+    ret
+
+.complex:                                       ; Opt. 2) Complex, control characters
+    call    np_complexChar
+    ret
+
 
 
 ;===============================================
@@ -287,6 +298,73 @@ np_keyNewline:
 ;===============================================
 np_keyEscape:
     mov     byte [opt_menu],1
+    call    util_setCursor
+    ret
+
+
+
+;===============================================
+; Closes the menu and redraws all the contents
+;===============================================
+np_closeMenu:
+    mov     byte [opt_menu],0
+    call    util_getCursor
+    call    np_refillScreen
+    ret
+
+
+;===============================================
+; Refills the screen with the data from the
+; text buffer.
+;===============================================
+np_refillScreen:
+    pusha
+
+    ; Clear the screen
+    mov     ax,INT_CLEAR_SCREEN
+    int     70h
+
+    ; Move the cursor back to 0,0
+    xor     dx,dx
+    mov     ax,INT_SET_CURSOR_POS
+    int     70h
+
+    ; Copy the buffer contents
+.copy:
+    mov     cx,word [text_size]
+    mov     si,text_buffer
+    mov     di,text_double
+
+.copy_loop:
+    mov     al,byte [ds:si]
+    mov     byte [ds:di],al
+    add     si,1
+    add     di,1
+    sub     cx,1
+    jne     .copy_loop
+
+    ; Zero-terminate the output
+    mov     byte [ds:di],0
+
+    ; Redraw the file's contents
+    mov     cx,word [text_size]
+    mov     word [text_size],0
+    mov     si,text_double
+.redraw:
+    movzx   ax,byte [ds:si]
+    ;test    ax,ax
+    ;je      .return
+    push    si
+    push    cx
+    call    np_drawChar
+    pop     cx
+    pop     si
+    add     si,1
+    sub     cx,1
+    jne     .redraw
+
+.return:
+    popa
     ret
 
 
@@ -346,14 +424,18 @@ handle_menu:
 .m_write:
     ; TODO:
     call    fn_typing
+    test    ax,ax
     je      .loop
+    ;call    np_writeFile
     jmp     .m_close
 
 ; Open from filename
 .m_open:
     ; TODO:
     call    fn_typing
+    test    ax,ax
     je      .loop
+    ;call    np_loadFile
     jmp     .m_close
 
 
@@ -363,11 +445,55 @@ handle_menu:
 
 ; Close the menu and quit
 .m_close:
-    mov     byte [opt_menu],0
+    call    np_closeMenu
     ret
 
 
+;===============================================
+; Loads a file from the medium.
+;===============================================
+np_loadFile:
+    pusha
 
+    ; file_name
+    ;mov    ds,ds
+    mov     si,file_buff
+
+    ; file_data
+    mov     bx,ds
+    mov     es,bx
+    mov     di,text_buffer
+
+    ; load file
+    mov     cx,text_ferr
+    mov     ax,INT_LOAD_FILE
+    int     70h
+    mov     ax,word [text_ferr]
+
+    ; check for errors
+    test    ax,ax
+    jne     .error
+
+.succes:
+    ; TODO: update the gui
+    call    np_refillScreen
+    jmp     .return
+
+.error:
+    mov     byte [opt_menu],0                   ; Hide the menu
+    mov     byte [opt_quit],1                   ; Terminate on load error
+    jmp     .return
+
+.return:
+    popa
+    ret
+
+
+;===============================================
+; Writes a file from the medium.
+;===============================================
+np_writeFile:
+    ret
 
 
 ;===============================================
@@ -416,13 +542,14 @@ fn_typing:
     jmp     .loop
 
 .escape:
-    mov     byte [opt_menu],0
+    call    np_closeMenu
 
 .return:
     mov     ax,0FFFFh
     ret
 
 .action:
+    call    np_closeMenu
     xor     ax,ax
     ret
 
