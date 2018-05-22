@@ -13,6 +13,8 @@ kernel_var  dw 512
 test_err    db 'Test failed', 0Dh, 0Ah, 0
 test_var    times 32 db 0
 
+test_name   db 'ABCDEFGHEXT',0
+
 ;===============================================
 ; Entry point of the kernel module.
 ;===============================================
@@ -52,13 +54,27 @@ kernel:
 ;    mov     si,test_err
 ;    call    print
 
+    push    es
+    push    ds
+
+    mov     cx,32
+    sub     sp,cx
+    mov     bp,sp
+    lea     di,[bp]
+    mov     si,test_name
+    call    fat_writeFile
+
+    pop     ds
+    pop     es
+
+
 .clear:
 
 
 
     ; Regular operations
-    call    register_interrupts
-    call    exec_cmd
+    ;call    register_interrupts
+    ;call    exec_cmd
 
 ;.keypress:
 ;    mov     ah,00h
@@ -158,6 +174,8 @@ kernel_interrupts:
 
     cmp     ax,INT_LOAD_FILE
     je      .loadFile
+    cmp     ax,INT_WRITE_FILE
+    je      .writeFile
     cmp     ax,INT_EXEC_PROGRAM
     je      .execProgram
     cmp     ax,INT_GPU_GRAPHICS
@@ -198,12 +216,21 @@ kernel_interrupts:
 
 
 ; short ax loadFile( void * es:di , char * ds:si )
+; short ax loadFile( void * dest, char * error )
 .loadFile:
     push    bx
     mov     bx,cx
     call    fat_loadFile
     mov     word [ds:bx],ax
     pop     bx
+    jmp     .return
+
+; Writes to a file
+; [ds:si]   File_name
+; [es:di]   File_data
+; cx        File_size
+.writeFile:
+    call    fat_writeFile
     jmp     .return
 
 ; void ax execProgram( char * ds:si )

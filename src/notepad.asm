@@ -476,7 +476,7 @@ np_loadFile:
 
 .succes:
     ; TODO: update the gui
-    call    np_refillScreen
+    ;call    np_refillScreen
     jmp     .return
 
 .error:

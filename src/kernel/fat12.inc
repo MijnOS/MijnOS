@@ -769,8 +769,8 @@ fat_doesFileExist:
 ; Writes a file to the medium.
 ;   In:
 ;     ds:si - File name
-;     es:bx - File data
-;     cx - The number of bytes to write.
+;     es:di - File data
+;     cx    - File size
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
@@ -780,12 +780,14 @@ fat_writeFile:
     sub     sp,46
     push    bx
 
+    mov     word [bp-2],cx
+
 ; Check if file with that name already exists.
 .findExisting:
     push    es
     mov     bx,ss
     mov     es,bx
-    lea     di,[bp-44]
+    lea     di,[bp-44]                          ; [es:di] = FAT entry
     call    fat_searchEntry                     ; Searches the root directory for a file with
     pop     es                                  ; the given name.
     
@@ -798,6 +800,11 @@ fat_writeFile:
     test    ax,0FFFFh                           ; No empty space found
     je      .error0                             ; Otherwise, ax is now the index
     mov     word [bp-46],ax                     ;   of the first empty spot.
+
+    call    fat_findEmptyCluster
+    cmp     ax,07FFFh
+    jge     .error0
+    mov     word [bp-4],ax
 
 ; TODO:
 .fillFileEntry:
@@ -814,12 +821,90 @@ fat_writeFile:
     ; 26-27 WORD firstLogicalCluster
     ; 28-31 DWORD fileSize
 
+    ; 1) Clear the entry
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]                          ; [es:di] = FAT entry
+    mov     cx,32
+.clear_loop:
+    mov     byte [es:di],0
+    add     di,1
+    sub     cx,1
+    jne     .clear_loop
+    pop     es
+
+    ; 2) Copy the name
+    push    es
+    push    si
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    mov     cx,8        ; Do not copy extension!
+.copy_name:
+    mov     al,byte [ds:si]
+    mov     byte [es:di],al
+    add     si,1
+    add     di,1
+    sub     cx,1
+    jne     .copy_name
+    pop     si
+    pop     es
+
+    ; 3) Set type to ARCHIVE (aka file)
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    add     di,11
+    mov     byte [es:di],020h
+    pop     es
+
+    ; 4) Set the file size
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    add     di,28
+    ;mov     cx,word [bp-2]
+    ;mov     word [es:di],cx
+    mov     word [es:di],512        ; single cluster
+    mov     word [es:di+2],0        ; upper 16-bits
+    pop     es
+
+    ; 5) Set the first cluster
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    add     di,26
+    mov     ax,word [bp-4]
+    mov     word [es:di],ax
+    mov     cx,0FFFh
+    call    fat_setClusterValue
+    pop     es
+
+    ; 6) Write the entry
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    mov     ax,word [bp-46]     ; index
+    lea     si,[bp-44]
+    call    fat_rootSetEntry     ; Write the entry to the disk
+    pop     es
+
 
 ; If it does, get the size and check if it changed, if changed
 ; allocate or free FAT clusters accordingly.
 .fileExists:
     ; When it comes here the information about the entry
     ; is stored in the location [es:di]
+
+    ; Determine the number of clusters needed
+    xor     dx,dx
+    mov     ax,word [bp-2]
+    mov     cx,word [gs:iFAT_BytesPerSector]
+    div     cx
 
 
 
