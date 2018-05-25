@@ -806,7 +806,7 @@ fat_writeFile:
     jge     .error0
     mov     word [bp-4],ax
 
-; TODO:
+; Fills the entry with basic file information
 .fillFileEntry:
     ; 0-7   BYTE filename
     ; 8-10  BYTE extension
@@ -903,8 +903,22 @@ fat_writeFile:
     ; Determine the number of clusters needed
     xor     dx,dx
     mov     ax,word [bp-2]
-    mov     cx,word [gs:iFAT_BytesPerSector]
-    div     cx
+    mov     cx,word [gs:iFAT_BytesPerSector]    ; ax = number of clusters needed
+    div     cx                                  ; dx = modulo
+    
+    test    dx,dx                               ; If dx is not zero it means we
+    je      .allocClusters                      ; need to allocate another
+    add     ax,1                                ; cluster for storing data.
+
+; ax now holds the number of clusters needed,
+; we need to check each root entry till we match
+; the new number. If the new number is lower than
+; the old number we must overwrite the last cluster
+; value to become the last of file. For the sake
+; of easiness we do not free other clusters.
+.allocClusters:
+
+
 
 
 
@@ -1849,4 +1863,5 @@ ferr_fread0 db 'I/O Error', 0
 ferr_fread1 db 'I/O Sector', 0
 
 
+%include "src/kernel/fat_root.inc"
 
