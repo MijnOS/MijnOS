@@ -1294,21 +1294,23 @@ fat_loadFile:
     jb      .load_loop
 
     mov     word [bp-2],0
+    ;mov     ax,word [bp-16]
+    ;mov     word [bp-2],ax
     jmp     .return
 
 .error0:
     pop     di
     pop     es
     ;pop     ds
-    mov     word [bp-2],ax
+    mov     word [bp-2],0FFFDh  ; ax
     jmp     .return
 
 .error1:
-    mov     word [bp-2],FERR_LOAD_FILE_0
+    mov     word [bp-2],0FFFFh  ; FERR_LOAD_FILE_0
     jmp     .return
 
 .error2:
-    mov     word [bp-2],FERR_LOAD_FILE_1
+    mov     word [bp-2],0FFFEh  ; FERR_LOAD_FILE_1
     jmp     .return
 
 .return:
@@ -1960,5 +1962,5 @@ ferr_fread0 db 'I/O Error', 0
 ferr_fread1 db 'I/O Sector', 0
 
 
-%include "src/kernel/fat_root.inc"
+;% ;include "src/kernel/fat_root.inc"
 

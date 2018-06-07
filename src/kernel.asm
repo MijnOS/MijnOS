@@ -54,27 +54,24 @@ kernel:
 ;    mov     si,test_err
 ;    call    print
 
-    push    es
-    push    ds
+;    push    es
+;    push    ds
+;
+;    mov     cx,32
+;    sub     sp,cx
+;    mov     bp,sp
+;    lea     di,[bp]
+;    mov     si,test_name
+;    call    fat_writeFile
+;
+;    pop     ds
+;    pop     es
 
-    mov     cx,32
-    sub     sp,cx
-    mov     bp,sp
-    lea     di,[bp]
-    mov     si,test_name
-    call    fat_writeFile
 
-    pop     ds
-    pop     es
-
-
+; Regular operations
 .clear:
-
-
-
-    ; Regular operations
-    ;call    register_interrupts
-    ;call    exec_cmd
+    call    register_interrupts
+    call    exec_cmd
 
 ;.keypress:
 ;    mov     ah,00h
@@ -172,6 +169,9 @@ kernel_interrupts:
     mov     gs,bx
     pop     bx
 
+    cmp     ax,INT_FILE_SIZE
+    je      .getFileSize
+
     cmp     ax,INT_LOAD_FILE
     je      .loadFile
     cmp     ax,INT_WRITE_FILE
@@ -214,6 +214,9 @@ kernel_interrupts:
     pop     gs
     iret
 
+
+.getFileSize:
+    jmp     .return
 
 ; short ax loadFile( void * es:di , char * ds:si )
 ; short ax loadFile( void * dest, char * error )

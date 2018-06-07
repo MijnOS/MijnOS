@@ -3,7 +3,7 @@
 jmp main
 
 %include "src\const.inc"
-%define BUFFER_SIZE     1024
+%define BUFFER_SIZE     512
 text_buffer times BUFFER_SIZE db 0              ; Buffer the user writes to when pressing a key
 text_double times BUFFER_SIZE db 0              ; Double buffer for redraws
 text_size   dw 0                                ; Number of characters currently in the buffer
@@ -12,7 +12,7 @@ opt_menu    db 0                                ; Should the menu be displayed
 text_bbuf   db 08h, 20h, 08h, 0                 ; Instructions for backspace
 file_str    db 'FILE: ', 0
 file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl. zst
-.length     dw ($-$$)                           ; Length of the buffer
+.length     dw ($-file_buff)                    ; Length of the buffer
 .count      dw 0                                ; Number of written characters
 cursor_pos  dw 0                                ; Cursor position
 %define MENU_COLOR  070h
@@ -459,10 +459,32 @@ np_loadFile:
     ;mov    ds,ds
     mov     si,file_buff
 
+    ; file_size
+    push    dx
+    push    ax
+    mov     ax,INT_FILE_SIZE
+    int     70h
+    mov     word [text_size],dx
+    pop     ax
+    pop     dx
+
     ; file_data
     mov     bx,ds
     mov     es,bx
     mov     di,text_buffer
+
+    ; clear the text buffer
+    ;push    ax
+    ;push    di
+    ;push    cx
+    ;mov     al,0
+    ;mov     cx,BUFFER_SIZE
+    ;mov     di,text_buffer
+    ;cld
+    ;rep     stosb
+    ;pop     di
+    ;pop     cx
+    ;pop     ax
 
     ; load file
     mov     cx,text_ferr
@@ -480,11 +502,11 @@ np_loadFile:
     jmp     .return
 
 .error:
-    mov     byte [opt_menu],0                   ; Hide the menu
     mov     byte [opt_quit],1                   ; Terminate on load error
     jmp     .return
 
 .return:
+    mov     byte [opt_menu],0                   ; Hide the menu
     popa
     ret
 
@@ -520,6 +542,12 @@ fn_typing:
     call    fn_append
     cmp     ax,0
     je      .continue
+
+.limit:
+    mov     cx,word [file_buff.count]
+    add     cx,1
+    cmp     cx,word [file_buff.length]
+    jae     .continue
 
     mov     cx,ax
     mov     bx,MENU_COLOR

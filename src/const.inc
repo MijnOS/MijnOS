@@ -25,6 +25,7 @@
 
 
 ; ax values for int 70h
+%define INT_FILE_SIZE       20h
 %define INT_RESERVED        0
 %define INT_LOAD_FILE       1
 %define INT_WRITE_FILE      5
