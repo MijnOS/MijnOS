@@ -1963,4 +1963,5 @@ ferr_fread1 db 'I/O Sector', 0
 
 
 ;% ;include "src/kernel/fat_root.inc"
+%include "src/kernel/fat_recluster.inc"
 

@@ -44,7 +44,7 @@ kernel:
 ;    mov     cx,8
 ;    call    printn
 ;
-;    mov     byte [ds:si],041h
+;    mov     byte [ds:si],041h       ; AMD.BIN
 ;    mov     ax,2
 ;    call    fat_rootSetEntry
 ;    test    ax,ax
@@ -54,32 +54,50 @@ kernel:
 ;    mov     si,test_err
 ;    call    print
 
+;.write_test:
 ;    push    es
 ;    push    ds
-;
+
 ;    mov     cx,32
 ;    sub     sp,cx
 ;    mov     bp,sp
 ;    lea     di,[bp]
 ;    mov     si,test_name
 ;    call    fat_writeFile
-;
+
 ;    pop     ds
 ;    pop     es
 
 
 ; Regular operations
-.clear:
-    call    register_interrupts
-    call    exec_cmd
+;.clear:
+;    call    register_interrupts
+;    call    exec_cmd
 
-;.keypress:
-;    mov     ah,00h
-;    int     16h
-;    movzx   ax,al
-;    call    print_hex
-;    call    print_newline
-;    jmp     .keypress
+.test_new_calc:
+    mov     ax,11
+    call    fat_calcClusters
+    call    print_hex
+    call    print_newline
+
+.test_new_alloc:
+    mov     ax,025h
+    mov     cx,5
+    call    fat_allocClusters
+    call    print_hex
+    call    print_newline
+
+.test_new_free:
+    call    print_hex
+    call    print_newline
+
+.keypress:
+    mov     ah,00h
+    int     16h
+    movzx   ax,al
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
 
     jmp     $
 

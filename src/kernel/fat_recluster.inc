@@ -27,6 +27,7 @@ fat_calcClusters:
     ret
 
 
+
 ;===============================================
 ; Allocates and links the specified number of
 ; clusters.
@@ -39,16 +40,51 @@ fat_calcClusters:
 fat_allocClusters:
     push    bp
     mov     bp,sp
-    sub     sp,2
+    sub     sp,4
+
+; if -1 we want to allocate from the beginning
+; up to the end of the file.
+.params:
+    cmp     ax,0FFFFh                           ; the cluster to start with has
+    jne     .loop                               ; already been allocated
+
+; we need to allocate the first cluster
+.first:
+    call    fat_findEmptyCluster                ; find first cluster for file
+    cmp     ax,0FF0h
+    jae     .error                              ; ensure error free
+  
+    mov     word [bp-4],ax
+
+    push    cx
+    mov     cx,0FFFh
+    call    fat_setClusterValue                 ; set the first cluster to be last-of-file
+    pop     cx
+
+    test    ax,ax
+    jne     .error                              ; ensure error free
+
+    mov     ax,word [bp-4]
+    ;sub     cx,1                                ; we have allocated a cluster
 
 ; keep looping till no more clusters have to be
 ; allocted.
 .loop:
     mov     word [bp-2],ax                      ; store the current cluster
 
+    push    cx
+    mov     cx,0FFFh
+    call    fat_setClusterValue                 ; set the initial state to -1
+    pop     cx
+
+    test    ax,ax
+    jne     .error                              ; ensure error free
+
     call    fat_findEmptyCluster                ; find the next empty cluster
     cmp     ax,0FF0h
-    jae     .return                             ; ensure error free
+    jae     .error                              ; ensure error free
+
+    mov     word [bp-4],ax                      ; store the next cluster
 
     push    cx
     mov     cx,ax                               ; the new value is the new cluster id
@@ -56,19 +92,32 @@ fat_allocClusters:
     call    fat_setClusterValue                 ; set the cluster behind the current cluster to be the new cluster
     pop     cx
 
+    test    ax,ax
+    jne     .error                              ; ensure error free set
+
+    mov     ax,word [bp-4]                      ; the next cluster will become the current
     loop    .loop
 
 ; set the last cluster to end-of-file
 .last:
-    call    fat_getClusterValue
+    mov     ax,word [bp-2]
     mov     cx,0FFFh
     call    fat_setClusterValue
+
+; when it reaches here, the op was succesful
+.success:
+    xor     ax,ax
 
 ; return to the caller
 .return:
     mov     sp,bp
     pop     bp
     ret
+
+; called when an error occurs
+.error:
+    mov     ax,0FFFFh
+    jmp     .return
 
 
 ;===============================================
@@ -140,7 +189,7 @@ fat_freeClusters:
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
-fat_relocClusters:
+fat_relocClusters2:
     push    bp
     mov     bp,sp
     sub     sp,6
