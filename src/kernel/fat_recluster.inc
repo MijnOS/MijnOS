@@ -145,17 +145,19 @@ fat_freeClusters:
 ; store the initial values
 .init:
     mov     word [bp-2],ax
-    mov
 
 ; first set the cluster value of the new last of
 ; file to be the actual last-of-file.
-.last:
+.first:
     call    fat_getClusterValue     ; get the id of the next cluster
     mov     word [bp-4],ax          ; store the next cluster id
 
     mov     ax,word [bp-2]          ; current cluster id
     mov     cx,0FFFh                ; last-of-file
     call    fat_setClusterValue     ; change to last-of-file
+
+    test    ax,ax
+    jne     .return                 ; ensure error free
 
 ; keep looping till no more cluster can be freed.
 .loop:
@@ -188,6 +190,7 @@ fat_freeClusters:
 
 ; last cluster of the file
 .last:
+    mov     ax,word [bp-2]
     mov     cx,0
     call    fat_setClusterValue
     ;test    ax,ax
