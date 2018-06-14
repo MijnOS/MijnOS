@@ -108,6 +108,9 @@ fat_allocClusters:
     mov     cx,0FFFh
     call    fat_setClusterValue
 
+    test    ax,ax
+    jne     .error                              ; ensure error free
+
 ; when it reaches here, the op was succesful
 .success:
     xor     ax,ax
@@ -142,35 +145,40 @@ fat_freeClusters:
 ; store the initial values
 .init:
     mov     word [bp-2],ax
+    mov
 
 ; first set the cluster value of the new last of
 ; file to be the actual last-of-file.
 .last:
-    call    fat_getClusterValue
-    push    ax
-    mov     ax,word [bp-2]
-    mov     cx,0FFFh
-    call    fat_setClusterValue
-    pop     ax
+    call    fat_getClusterValue     ; get the id of the next cluster
+    mov     word [bp-4],ax          ; store the next cluster id
+
+    mov     ax,word [bp-2]          ; current cluster id
+    mov     cx,0FFFh                ; last-of-file
+    call    fat_setClusterValue     ; change to last-of-file
 
 ; keep looping till no more cluster can be freed.
 .loop:
-    mov     word [bp-2],ax
-    call    fat_getClusterValue
-    mov     word [bp-4],ax
-
-    mov     ax,word [bp-2]                      ; clear current cluster
-    mov     cx,0
-    call    fat_setClusterValue
-
-    mov     ax,word [bp-4]                      ; check next cluster
-    test    ax,ax                               ; 0 = unused
+    mov     ax,word [bp-4]
+    test    ax,ax                   ; unused/free
     je      .return
-    cmp     ax,0FF0h                            ; valid
-    jb      .loop
-    cmp     ax,0FF8h                            ; end-of-file
-    jae     .loop
-    ; x >= 0FF0h && x <= 0FF7h                  ; invalid
+    cmp     ax,0FF8h                ; error state(s)
+    jae     .return
+    cmp     ax,0FF0h                ; last-of-file
+    jae     .last
+    mov     word [bp-2],ax
+
+; this cluster has another behind it
+.intermediate:
+    call    fat_getClusterValue
+    mov     word [bp-4],ax          ; store the next cluster id 
+
+    mov     ax,word [bp-2]
+    mov     cx,0
+    call    fat_setClusterValue     ; set the cluster to free
+
+    test    ax,ax
+    je      .loop                   ; ensure error free
 
 ; return to the caller
 .return:
@@ -178,7 +186,13 @@ fat_freeClusters:
     pop     bp
     ret
 
-
+; last cluster of the file
+.last:
+    mov     cx,0
+    call    fat_setClusterValue
+    ;test    ax,ax
+    ;just return the value
+    jmp     .return
 
 
 
