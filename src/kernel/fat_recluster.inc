@@ -36,17 +36,18 @@ fat_calcClusters:
 ;     cx - The number of clusters to allocate.
 ;   Out:
 ;     ax - Zero if successful.
+;     cx - Starting cluster.
 ;===============================================
 fat_allocClusters:
     push    bp
     mov     bp,sp
-    sub     sp,4
+    sub     sp,6
 
 ; if -1 we want to allocate from the beginning
 ; up to the end of the file.
 .params:
     cmp     ax,0FFFFh                           ; the cluster to start with has
-    jne     .loop                               ; already been allocated
+    jne     .start                              ; already been allocated
 
 ; we need to allocate the first cluster
 .first:
@@ -66,6 +67,9 @@ fat_allocClusters:
 
     mov     ax,word [bp-4]
     ;sub     cx,1                                ; we have allocated a cluster
+
+.start:
+    mov     word [bp-6],ax
 
 ; keep looping till no more clusters have to be
 ; allocted.
@@ -110,6 +114,7 @@ fat_allocClusters:
 
 ; return to the caller
 .return:
+    mov     cx,word [bp-6]
     mov     sp,bp
     pop     bp
     ret
@@ -118,6 +123,7 @@ fat_allocClusters:
 .error:
     mov     ax,0FFFFh
     jmp     .return
+
 
 
 ;===============================================

@@ -86,6 +86,9 @@ kernel:
     call    fat_allocClusters
     call    print_hex
     call    print_newline
+    mov     ax,cx
+    call    print_hex
+    call    print_newline
 
 .test_new_free:
     call    print_hex
