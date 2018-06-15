@@ -128,6 +128,25 @@ fat_allocClusters:
     jmp     .return
 
 
+;===============================================
+; N/A
+;===============================================
+fatr_debug  db 'called', 0
+fat_debug:
+    push    bp
+    mov     bp,sp
+    pusha
+
+.display:
+    mov     si,fatr_debug
+    call    print
+
+.return:
+    popa
+    mov     sp,bp
+    pop     bp
+    ret
+
 
 ;===============================================
 ; Frees all the clusters behind the current
@@ -140,10 +159,14 @@ fat_allocClusters:
 fat_freeClusters:
     push    bp
     mov     bp,sp
-    sub     bp,4
+    sub     sp,4
 
 ; store the initial values
 .init:
+    test    ax,ax
+    je      .return
+    cmp     ax,0FF0h
+    jae     .return                 ; ensure valid cluster id
     mov     word [bp-2],ax
 
 ; first set the cluster value of the new last of
@@ -161,14 +184,14 @@ fat_freeClusters:
 
 ; keep looping till no more cluster can be freed.
 .loop:
-    mov     ax,word [bp-4]
+    mov     ax,word [bp-4]          ; next cluster
     test    ax,ax                   ; unused/free
     je      .return
     cmp     ax,0FF8h                ; error state(s)
     jae     .return
     cmp     ax,0FF0h                ; last-of-file
     jae     .last
-    mov     word [bp-2],ax
+    mov     word [bp-2],ax          ; current = next
 
 ; this cluster has another behind it
 .intermediate:

@@ -81,7 +81,7 @@ kernel:
     call    print_newline
 
 .test_new_alloc:
-    mov     ax,025h
+    mov     ax,027h
     mov     cx,5
     call    fat_allocClusters
     call    print_hex
@@ -89,8 +89,11 @@ kernel:
     mov     ax,cx
     call    print_hex
     call    print_newline
+    jmp     .keypress
 
 .test_new_free:
+    mov     ax,029h
+    call    fat_freeClusters
     call    print_hex
     call    print_newline
 
