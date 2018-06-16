@@ -4,7 +4,7 @@
 ;   In:
 ;     ax - The starting cluster.
 ;   Out:
-;     ax - Zero if successful.
+;     ax - The number of clusters.
 ;===============================================
 fat_calcClusters:
     push    cx
@@ -128,25 +128,6 @@ fat_allocClusters:
     jmp     .return
 
 
-;===============================================
-; N/A
-;===============================================
-fatr_debug  db 'called', 0
-fat_debug:
-    push    bp
-    mov     bp,sp
-    pusha
-
-.display:
-    mov     si,fatr_debug
-    call    print
-
-.return:
-    popa
-    mov     sp,bp
-    pop     bp
-    ret
-
 
 ;===============================================
 ; Frees all the clusters behind the current
@@ -222,10 +203,6 @@ fat_freeClusters:
 
 
 
-
-
-
-
 ;===============================================
 ; Reallocates clusters. This includes growning
 ; as well as shrinking in number of clusters.
@@ -240,33 +217,31 @@ fat_relocClusters2:
     mov     bp,sp
     sub     sp,6
 
-    ; Store a copy of the value
+; parameters check
+.params:
+    cmp     ax,500
+    ja      .return     ; up to 500 clusters not any larger
+    cmp     ax,0
+    jbe     .return     ; zero or negative clusters is not allowed either
+
+    cmp     cx,33       ; BOOT + 2x FAT + ROOT
+    jbe     .return     ; first are special
+    cmp     cx,0FF0h
+    jb      .init       ; valid cluster id
+    cmp     cx,0FF8h
+    jb      .init       ; reserved/bad cluster
+
+; initialize for use
+.init:
     mov     word [bp-2],ax  ; reqClusters - The requested number of clusters.
     mov     word [bp-4],cx  ; rootCluster - The starting cluster.
     mov     word [bp-6],0   ; numClusters - The number of used clusters.
 
-    ; The starting cluster will be our root
-    mov     ax,cx
-
-; main loop
-.loop:
-    mov     cx,word [bp-6]
-    add     cx,1
-    mov     word [bp-6],cx
-    cmp     cx,word [bp-2]
-    jne     .next
-
-; last-of-file
-.last:
-    mov     ax,0FFFh
-    call    fat_setClusterValue
-    jmp     .return
-
-; there is another cluster behind this cluster
-.next:
-    
-    
-
+; get the current length
+.length:
+    mov     ax,word [bp-4]
+    call    fat_calcClusters
+    mov     word [bp-6],ax
 
 ; return to the caller
 .return:
