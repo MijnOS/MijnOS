@@ -215,7 +215,11 @@ fat_freeClusters:
 fat_relocClusters2:
     push    bp
     mov     bp,sp
-    sub     sp,6
+    sub     sp,8
+    pusha
+
+    ; default return value
+    mov     word [bp-8],0FFFFh
 
 ; parameters check
 .params:
@@ -224,7 +228,8 @@ fat_relocClusters2:
     cmp     ax,0
     jbe     .return     ; zero or negative clusters is not allowed either
 
-    cmp     cx,33       ; BOOT + 2x FAT + ROOT
+    ;cmp     cx,33       ; BOOT + 2x FAT + ROOT
+    cmp     cx,1        ; volume entries
     jbe     .return     ; first are special
     cmp     cx,0FF0h
     jb      .init       ; valid cluster id
@@ -242,6 +247,99 @@ fat_relocClusters2:
     mov     ax,word [bp-4]
     call    fat_calcClusters
     mov     word [bp-6],ax
+
+; determine the difference between the currently
+; number of used and requested number of clusters.
+.difference:
+    mov     ax,word [bp-2]  ; reqClusters
+    mov     cx,word [bp-6]  ; numClusters
+    cmp     ax,cx
+    jb      .lower      ; reqClusters < numClusters
+    cmp     ax,cx
+    ja      .higher     ; reqClusters > numClusters
+    jmp     .equal      ; reqClusters == numClusters
+
+; the requested and currently used match up
+.equal:
+    mov     word [bp-8],0   ; success
+    jmp     .return
+
+; an x-amount of clusters can be freed; skip for now
+.lower:
+    ; TODO: if time/for future builds
+    mov     word [bp-8],0   ; success
+    jmp     .return
+
+; we need to allocate more clusters
+.higher:
+    sub     ax,cx       ; diff = ( reqClusters - numClusters )
+
+.search_start:
+    push    ax
+    push    cx
+    push    dx
+    xchg    cx,ax           ; diff
+    mov     ax,word [bp-4]  ; rootCluster
+
+; loop till no more clusters are linked
+.loop:
+    test    ax,ax
+    je      .search_end     ; 0 = unused
+
+    cmp     ax,0FF8h
+    jae     .search_end     ; >= 0FF8h last-of-file
+
+    cmp     ax,0FF0h
+    jae     .error          ; reserved/bad cluster
+
+    mov     dx,ax           ; curCluster
+    call    fat_getClusterValue
+    jmp     .loop
+
+.search_end:
+    mov     word [bp-8],dx  ; last cluster of file
+    pop     dx
+    pop     cx          ; numClusters
+    pop     ax          ; diff
+
+; return to the caller
+.return:
+    popa
+    mov     ax,word [bp-8]
+    mov     sp,bp
+    pop     bp
+    ret
+    
+; an error occured
+.error:
+    mov     word [bp-8],0FFFFh
+    jmp     .return
+
+
+;===============================================
+; Reworked file writing function.
+;===============================================
+;   In:
+;     bp+4  - File name (stack)
+;     bp+6  - File name (offset)
+;     bp+8  - File data (stack)
+;     bp+10 - File data (offset)
+;     bp+12 - File size
+;===============================================
+;   Old:
+;     ds:si - File name
+;     es:di - File data
+;     cx    - File size
+;===============================================
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_writeFile2:
+    push    bp
+    mov     bp,sp
+    sub     sp,2
+
+    ; TODO:
 
 ; return to the caller
 .return:

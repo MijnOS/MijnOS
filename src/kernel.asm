@@ -97,6 +97,10 @@ kernel:
     call    print_hex
     call    print_newline
 
+.test_new_write:
+    call    print_hex
+    call    print_newline
+
 .keypress:
     mov     ah,00h
     int     16h
