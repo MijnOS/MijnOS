@@ -13,7 +13,7 @@ fat_calcClusters:
 ; loop till no more clusters are linked
 .loop:
     test    ax,ax       ; 0 = unused
-    je      .return     ; >= 0FF0h reserved
+    jbe     .return     ; >= 0FF0h reserved
     cmp     ax,0FF0h    ; == 0FF7h bad
     jae     .return     ; >= 0FF8h last-of-file
     add     cx,1
@@ -26,6 +26,37 @@ fat_calcClusters:
     pop     cx
     ret
 
+
+
+;===============================================
+; Gets the index of the cluster for the file.
+;   In:
+;     ax - The starting cluster.
+;   Out:
+;     ax - Zero if failed; otherwise, the cluster index.
+;===============================================
+fat_getLastFileCluster:
+    push    cx
+    push    dx
+    xor     cx,cx
+    xor     dx,dx
+
+; loop till no more clusters are linked
+.loop:
+    test    ax,ax       ; < 0 = program error
+    jbe     .return     ; 0 = unused
+    cmp     ax,0FF0h    ; >= 0FF0h reserved
+    jae     .return     ; == 0FF7h bad
+    mov     dx,ax       ; >= 0FF8h last-of-file
+    call    fat_getClusterValue
+    jmp     .loop
+
+; return to the caller
+.return:
+    mov     ax,dx
+    pop     dx
+    pop     cx
+    ret
 
 
 ;===============================================
@@ -199,6 +230,7 @@ fat_freeClusters:
     call    fat_setClusterValue
     ;test    ax,ax
     ;just return the value
+    xor     ax,ax
     jmp     .return
 
 

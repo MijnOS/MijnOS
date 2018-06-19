@@ -89,7 +89,7 @@ kernel:
     mov     ax,cx
     call    print_hex
     call    print_newline
-    jmp     .keypress
+    ;jmp     .keypress
 
 .test_new_free:
     mov     ax,029h
@@ -98,6 +98,8 @@ kernel:
     call    print_newline
 
 .test_new_write:
+    mov     ax,028h
+    call    fat_getLastFileCluster
     call    print_hex
     call    print_newline
 
