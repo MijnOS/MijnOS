@@ -1,3 +1,30 @@
+;===============================================
+; Copies data from n-bytes from [ds:si] to the
+; stack.
+;===============================================
+%macro mCopyToStack 2
+
+    push    bx
+    push    cx
+    push    si
+    push    di
+    push    es
+
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-%1]
+    mov     cx,%2
+
+    rep movsb
+
+    pop     es
+    pop     di
+    pop     si
+    pop     cx
+    pop     bx
+
+%endmacro
+
 
 ;===============================================
 ; Determines the current number of used clusters.
@@ -305,34 +332,18 @@ fat_relocClusters2:
 ; we need to allocate more clusters
 .higher:
     sub     ax,cx       ; diff = ( reqClusters - numClusters )
-
-.search_start:
     push    ax
-    push    cx
-    push    dx
-    xchg    cx,ax           ; diff
-    mov     ax,word [bp-4]  ; rootCluster
+    mov     ax,word [bp-4]
+    call    fat_getLastFileCluster
+    ;mov     dx,ax       ; last cluster id
+    pop     cx          ; diff (aka num to allocate)
 
-; loop till no more clusters are linked
-.loop:
     test    ax,ax
-    je      .search_end     ; 0 = unused
+    je      .error
 
-    cmp     ax,0FF8h
-    jae     .search_end     ; >= 0FF8h last-of-file
-
-    cmp     ax,0FF0h
-    jae     .error          ; reserved/bad cluster
-
-    mov     dx,ax           ; curCluster
-    call    fat_getClusterValue
-    jmp     .loop
-
-.search_end:
-    mov     word [bp-8],dx  ; last cluster of file
-    pop     dx
-    pop     cx          ; numClusters
-    pop     ax          ; diff
+    call    fat_allocClusters
+    test    ax,ax
+    jne     .error
 
 ; return to the caller
 .return:
@@ -346,6 +357,176 @@ fat_relocClusters2:
 .error:
     mov     word [bp-8],0FFFFh
     jmp     .return
+
+
+
+;===============================================
+; Creates a file entry.
+;   In:
+;     ds:si - File name
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_createFile:
+    push    bp
+    mov     bp,sp
+    sub     sp,48
+    push    bx
+    push    cx
+    push    dx
+    push    si
+    push    di
+
+; searches for an empty file entry
+.findEmptyEntry:
+    call    fat_findEmptyFileEntry
+    test    ax,0FFFFh
+    je      .error
+    mov     word [bp-46],ax
+
+; find an empty cluster
+.findEmptyCluster:
+    call    fat_findEmptyCluster
+    cmp     ax,07FFFh
+    jge     .error
+    mov     word [bp-48],ax
+
+; clears the stack entry
+.clearStackEntry:
+    push    di
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    mov     cx,32
+    xor     ax,ax 
+    rep stosb
+    pop     es
+    pop     di
+
+; fills the entry with proper data; NOTE that
+; everything is set to zero, as such we only
+; need to fill the required fields
+.fillStackEntry:
+
+; copies the name
+.copy_name:
+    mCopyToStack 44, 11         ; 11 = name + extension
+
+; sets the entry as archive
+.set_archive:
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    add     di,11
+    mov     byte [es:di],020h
+    pop     es
+
+; reserved the cluster on the disk
+.reserve_firstCluster:
+    mov     ax,word [bp-48]
+    mov     cx,0FFFh
+    call    fat_setClusterValue
+    cmp     ax,ax
+    jne     .error
+
+; set the file entry's cluster value
+.set_cluster:
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    add     di,26               ; first logical cluster
+    mov     ax,word [bp-48]
+    mov     word [es:di],ax
+    pop     es
+
+; sets the filesize to a single cluster
+.set_filesize:
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    add     di,28
+    mov     ax,word [gs:iFAT_BytesPerSector]
+    mov     word [es:di],ax         ; single cluster
+    mov     word [es:di+2],0        ; upper 16-bits
+    pop     es
+
+; success/no errors
+.success:
+    xor     ax,ax
+
+; return to the caller
+.return:
+    pop     di
+    pop     si
+    pop     dx
+    pop     cx
+    pop     bx
+    mov     sp,bp
+    pop     bp
+    ret
+
+; an error occured
+.error:
+    mov     ax,0FFFFh
+    jmp     .return
+; 0-7   BYTE filename
+; 8-10  BYTE extension
+; 11    BYTE attributes
+; 12-13 WORD reserved
+; 14-15 WORD creationTime
+; 16-17 WORD creationDate
+; 18-19 WORD lastAccessDate
+; 20-21 WORD zeros
+; 22-23 WORD lastWriteTime
+; 24-25 WORD lastWriteDate
+; 26-27 WORD firstLogicalCluster
+; 28-31 DWORD fileSize
+
+
+
+;===============================================
+; Reads a file entry from the medium. Creates
+; an entry if it does not yet exist.
+;   In:
+;     ds:si - File name
+;     es:di - Destination to copy to
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_fileReadOrCreate:
+    push    bp
+    mov     bp,sp
+    sub     sp,44
+    push    bx
+
+; searches for an existing entry.
+.findExisting:
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    call    fat_searchEntry
+    pop     es
+
+    test    ax,ax       ; entry does exist
+    je      .copy
+
+; file does not exist, create it
+.fileNotFound:
+
+; copy from stack to destination
+.copy:
+
+; return to the caller
+.return:
+    pop     bx
+    mov     sp,bp
+    pop     bp
+    ret
 
 
 ;===============================================
@@ -371,7 +552,7 @@ fat_writeFile2:
     mov     bp,sp
     sub     sp,2
 
-    ; TODO:
+; TODO:
 
 ; return to the caller
 .return:
