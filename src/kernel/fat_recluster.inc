@@ -25,6 +25,27 @@
 
 %endmacro
 
+;===============================================
+; Searches for the matching file entry; if found
+; it will be copied to [ss:bp-%1]
+;===============================================
+%macro mSearchEntry 1
+
+    push    es
+    push    bx
+    push    di
+
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-%1]
+    call    fat_searchEntry
+
+    pop     di
+    pop     bx
+    pop     es
+
+%endmacro
+
 
 ;===============================================
 ; Determines the current number of used clusters.
@@ -462,13 +483,12 @@ fat_createFile:
 
 ; write to the drive
 .write_to_drive:
-    ; TODO: write the entry to the disk
     push    es
     mov     bx,ss
     mov     es,bx
-    mov     ax,word [bp-46]     ; index
+    mov     ax,word [bp-46]         ; index
     lea     si,[bp-44]
-    call    fat_rootSetEntry     ; Write the entry to the disk
+    call    fat_rootSetEntry        ; Write the entry to the disk
     pop     es
 
     test    ax,ax
@@ -525,13 +545,7 @@ fat_fileReadOrCreateEntry:
 
 ; searches for an existing entry.
 .findExisting:
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]
-    call    fat_searchEntry
-    pop     es
-
+    mSearchEntry 44
     test    ax,ax       ; entry does exist
     je      .copy
 
@@ -543,13 +557,7 @@ fat_fileReadOrCreateEntry:
 
 ; try searching for the new entry
 .createSearch:
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]
-    call    fat_searchEntry
-    pop     es
-
+    mSearchEntry 44
     test    ax,ax       ; entry does exist
     je      .copy
 
@@ -580,6 +588,66 @@ fat_fileReadOrCreateEntry:
 ; return to the caller
 .return:
     pop     bx
+    mov     sp,bp
+    pop     bp
+    ret
+
+; an error occured
+.error:
+    mov     ax,0FFFFh
+    jmp     .return
+
+
+;===============================================
+; Resizes a file to the given size.
+;   In:
+;     ds:si - File name
+;     cx    - File size
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_fileResize:
+    push    bp
+    mov     bp,sp
+    sub     sp,46
+
+.init:
+    mov     word [bp-46],cx
+
+; searches for the entry with a matching name
+.findExisting:
+    mSearchEntry 44
+    test    ax,ax
+    jne     .error
+
+; determine the number of clusters to use
+.calcClusters:
+    xor     dx,dx
+    mov     ax,word [bp-46]                     ; size needed
+    mov     cx,word [gs:iFAT_BytesPerSector]    ; ax = number of clusters needed
+    div                                         ; dx = modulo
+
+    ; ensure the size fits
+    test    dx,dx       ; if dx is not zero we
+    je      .resize     ; will need another
+    add     ax,1        ; cluster for the remainder
+
+; actually resize
+.resize:
+    mov     cx,ax               ; number of clusters needed
+    mov     ax,word [bp-18]     ; root/logical sector
+    call    fat_relocClusters2
+    test    ax,ax
+    jne     .error
+
+; update the file's entry
+.update:
+    mov     ax,word [bp-46]
+    mov     word [bp-16],ax
+    ; TODO: get index and update on the drive
+
+; return to the caller
+.return:
     mov     sp,bp
     pop     bp
     ret

@@ -127,6 +127,10 @@ kernel:
     call    print_hex
     call    print_newline
 
+.test_new_fileResize:
+    ;call    print_hex
+    ;call    print_newline
+
 .keypress:
     mov     ah,00h
     int     16h

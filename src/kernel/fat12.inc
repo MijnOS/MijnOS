@@ -1132,8 +1132,14 @@ fat_findEmptyCluster:
     ret
 
 
+;===============================================
 ; Searches for and returns the index of the
 ; first empty file entry in the root directory.
+;   In:
+;     ? (ds:si - The name of the file.)
+;   Out:
+;     ax - Zero if failed; otherwise, the index.
+;===============================================
 fat_findEmptyFileEntry:
     push    bp
     mov     bp,sp
