@@ -14,6 +14,7 @@ test_err    db 'Test failed', 0Dh, 0Ah, 0
 test_var    times 32 db 0
 
 test_name   db 'ABCDEFGHEXT',0
+test_cfile  db 'TEST    TXT',0
 
 ;===============================================
 ; Entry point of the kernel module.
@@ -87,9 +88,11 @@ kernel:
     call    print_hex
     call    print_newline
     mov     ax,cx
+    push    ax
     call    print_hex
     call    print_newline
-    ;jmp     .keypress
+    pop     ax
+    jmp     .test_new_reloc
 
 .test_new_free:
     mov     ax,029h
@@ -100,6 +103,27 @@ kernel:
 .test_new_write:
     mov     ax,028h
     call    fat_getLastFileCluster
+    call    print_hex
+    call    print_newline
+
+.test_new_reloc:
+    push    ax
+    mov     cx,ax
+    mov     ax,2                    ; SHRINK: not implemented so ok :-)
+    call    fat_relocClusters2
+    call    print_hex
+    call    print_newline
+    pop     ax
+
+    mov     cx,ax
+    mov     ax,7                    ; GROW: successful
+    call    fat_relocClusters2
+    call    print_hex
+    call    print_newline
+
+.test_new_createFile:
+    mov     si,test_cfile
+    call    fat_createFile
     call    print_hex
     call    print_newline
 

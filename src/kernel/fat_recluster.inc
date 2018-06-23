@@ -52,7 +52,7 @@ fat_calcClusters:
     mov     ax,cx
     pop     cx
     ret
-
+; TEST: OK
 
 
 ;===============================================
@@ -84,6 +84,7 @@ fat_getLastFileCluster:
     pop     dx
     pop     cx
     ret
+; TEST: OK
 
 
 ;===============================================
@@ -184,7 +185,7 @@ fat_allocClusters:
 .error:
     mov     ax,0FFFFh
     jmp     .return
-
+; TEST: OK
 
 
 ;===============================================
@@ -259,6 +260,7 @@ fat_freeClusters:
     ;just return the value
     xor     ax,ax
     jmp     .return
+; TEST: OK
 
 
 
@@ -345,6 +347,10 @@ fat_relocClusters2:
     test    ax,ax
     jne     .error
 
+; when here it is successful
+.success:
+    mov     word [bp-8],0
+
 ; return to the caller
 .return:
     popa
@@ -357,7 +363,7 @@ fat_relocClusters2:
 .error:
     mov     word [bp-8],0FFFFh
     jmp     .return
-
+; TEST: OK
 
 
 ;===============================================
@@ -454,6 +460,20 @@ fat_createFile:
     mov     word [es:di+2],0        ; upper 16-bits
     pop     es
 
+; write to the drive
+.write_to_drive:
+    ; TODO: write the entry to the disk
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    mov     ax,word [bp-46]     ; index
+    lea     si,[bp-44]
+    call    fat_rootSetEntry     ; Write the entry to the disk
+    pop     es
+
+    test    ax,ax
+    jne     .error
+
 ; success/no errors
 .success:
     xor     ax,ax
@@ -497,7 +517,7 @@ fat_createFile:
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
-fat_fileReadOrCreate:
+fat_fileReadOrCreateEntry:
     push    bp
     mov     bp,sp
     sub     sp,44
@@ -517,9 +537,45 @@ fat_fileReadOrCreate:
 
 ; file does not exist, create it
 .fileNotFound:
+    call    fat_createFile
+    cmp     ax,ax
+    jne     .return
+
+; try searching for the new entry
+.createSearch:
+    push    es
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-44]
+    call    fat_searchEntry
+    pop     es
+
+    test    ax,ax       ; entry does exist
+    je      .copy
 
 ; copy from stack to destination
 .copy:
+    push    ds
+    push    si
+    push    bx
+    push    cx
+
+    mov     bx,ss       ; source
+    mov     ds,bx
+    lea     ax,[bp-44]
+    mov     si,ax
+
+    mov     cx,44
+    rep movsb
+
+    pop     cx
+    pop     bx
+    pop     si
+    pop     ds
+
+; if it comes here it is successful
+.success:
+    xor     ax,ax
 
 ; return to the caller
 .return:
@@ -527,6 +583,11 @@ fat_fileReadOrCreate:
     mov     sp,bp
     pop     bp
     ret
+
+; an error occured
+.error:
+    mov     ax,0FFFFh
+    jmp     .return
 
 
 ;===============================================
