@@ -15,6 +15,7 @@ test_var    times 32 db 0
 
 test_name   db 'ABCDEFGHEXT',0
 test_cfile  db 'TEST    TXT',0
+test_guid   db 'DMMY00  TXT',0
 
 ;===============================================
 ; Entry point of the kernel module.
@@ -75,6 +76,28 @@ kernel:
 ;    call    register_interrupts
 ;    call    exec_cmd
 
+.tests:
+  
+
+
+.test_old_getRootEntry:
+    mov     bx,ds
+    mov     es,bx
+    mov     di,test_var
+
+    mov     ax,2                    ; CMD.BIN
+    call    fat_rootGetEntry
+    call    print_hex
+    call    print_newline
+
+    mov     si,test_var
+    mov     cx,11
+    call    printn
+    call    print_newline
+
+    jmp     .test_new_getEntryId
+    ;jmp     .keypress
+
 .test_new_calc:
     mov     ax,11
     call    fat_calcClusters
@@ -125,6 +148,16 @@ kernel:
     mov     si,test_cfile
     call    fat_createFile
     call    print_hex
+    call    print_newline
+
+.test_new_getEntryId:
+    mov     si,test_guid
+    call    fat_getEntryId
+    call    print_hex
+    call    print_newline
+
+    mov     si,test_guid
+    call    print
     call    print_newline
 
 .test_new_fileResize:

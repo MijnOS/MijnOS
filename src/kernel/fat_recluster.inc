@@ -596,6 +596,90 @@ fat_fileReadOrCreateEntry:
 .error:
     mov     ax,0FFFFh
     jmp     .return
+; TEST: N/A
+
+
+;===============================================
+; Get the id of the FAT entry with the matching
+; name.
+;   In:
+;     ds:si - File name
+;   Out:
+;     ax - Zero if failed; otherwise, the id.
+;===============================================
+fat_getEntryId:
+    push    bp
+    mov     bp,sp
+    sub     sp,34
+    pusha
+
+    mov     word [bp-34],0
+
+; search for the entry with the matching name
+.search:
+    push    es
+    push    di
+    push    bx
+
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-32]
+
+    mov     ax,word [bp-34]
+    call    fat_rootGetEntry
+
+    pop     bx
+    pop     di
+    pop     es
+
+    test    ax,ax
+    jne     .error
+
+; compare the name of the entry on the stack to
+; the one given by the user
+.compare:
+    push    es
+    push    di
+    push    bx
+    push    cx
+
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-32]
+    
+    mov     cx,11       ; name + extension
+
+    ; [ds:si] [es:di] cx
+;    xor     ax,ax
+;    repe cmpsb
+;    setne   al          ; set if not equal
+    ; ^^ FIXME: not properly set...
+    call    strncmp
+
+    pop     cx
+    pop     bx
+    pop     di
+    pop     es
+
+    test    al,al       ; 0 = equal
+    je      .return
+
+    add     word [bp-34],1
+    jmp     .search
+
+; return to the caller
+.return:
+    popa
+    mov     ax,word [bp-34]
+    mov     sp,bp
+    pop     bp
+    ret
+
+; an error occured
+.error:
+    mov     word [bp-34],0FFFFh
+    jmp     .return
+; TEST: OK
 
 
 ;===============================================
@@ -625,7 +709,7 @@ fat_fileResize:
     xor     dx,dx
     mov     ax,word [bp-46]                     ; size needed
     mov     cx,word [gs:iFAT_BytesPerSector]    ; ax = number of clusters needed
-    div                                         ; dx = modulo
+    div     cx                                  ; dx = modulo
 
     ; ensure the size fits
     test    dx,dx       ; if dx is not zero we

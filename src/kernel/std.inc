@@ -219,3 +219,55 @@ strncpy:
     mov     sp,bp
     pop     bp
     ret
+
+
+
+;===============================================
+; Compares up to the maximum number of
+; characters from the source string to the
+; destination string.
+;   int strncmp(char *dest, char *src, int n)
+; In:
+;   ds:si - Source string
+;   es:di - Destination string
+;   cx - The maximum number of characters
+; Out:
+;   ax - Zero if equal; otherwise, non-zero.
+;===============================================
+strncmp:
+    push    bp
+    mov     bp,sp
+    push    cx
+    push    dx
+    push    si
+    push    di
+
+.loop:
+    mov     al,byte [ds:si]
+    mov     dl,byte [es:di]
+
+    test    al,al       ; string termination
+    je      .not_equal
+
+    cmp     al,dl       ; strings differ
+    jne     .not_equal
+
+    add     si,1
+    add     di,1
+    loop    .loop       ; max length reached?
+
+.equal:
+    xor     ax,ax
+
+.return:
+    pop     di
+    pop     si
+    pop     dx
+    pop     cx
+    mov     sp,bp
+    pop     bp
+    ret
+
+.not_equal:
+    mov     ax,0FFFFh   ; NOTE: not the standard C/C++ direction
+    jmp     .return

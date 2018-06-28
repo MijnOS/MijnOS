@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.inc": "asm",
+        "*.asm": "asm",
+        "queue": "c"
+    }
+}
