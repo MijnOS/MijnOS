@@ -1,4 +1,14 @@
 ;===============================================
+; Displays the value of the ax register.
+;===============================================
+%macro mDebug 0
+
+    call    print_hex
+    call    print_newline
+
+%endmacro
+
+;===============================================
 ; Copies data from n-bytes from [ds:si] to the
 ; stack.
 ;===============================================
@@ -184,7 +194,7 @@ fat_allocClusters:
 
 ; set the last cluster to end-of-file
 .last:
-    mov     ax,word [bp-2]
+    mov     ax,word [bp-4]
     mov     cx,0FFFh
     call    fat_setClusterValue
 
@@ -330,6 +340,8 @@ fat_relocClusters2:
     call    fat_calcClusters
     mov     word [bp-6],ax
 
+    mDebug
+
 ; determine the difference between the currently
 ; number of used and requested number of clusters.
 .difference:
@@ -356,6 +368,9 @@ fat_relocClusters2:
 .higher:
     sub     ax,cx       ; diff = ( reqClusters - numClusters )
     push    ax
+
+    mDebug
+
     mov     ax,word [bp-4]
     call    fat_getLastFileCluster
     ;mov     dx,ax       ; last cluster id
@@ -702,7 +717,7 @@ fat_fileResize:
 .findExisting:
     mSearchEntry 44
     test    ax,ax
-    jne     .error
+    jne     .error0
 
 ; determine the number of clusters to use
 .calcClusters:
@@ -720,15 +735,68 @@ fat_fileResize:
 .resize:
     mov     cx,ax               ; number of clusters needed
     mov     ax,word [bp-18]     ; root/logical sector
+
+    ; cx = 02h
+    ; ax = 17h
+    mDebug
+
+    xchg    ax,cx
+
+    mDebug
+
     call    fat_relocClusters2
     test    ax,ax
-    jne     .error
+    jne     .error1
 
 ; update the file's entry
 .update:
     mov     ax,word [bp-46]
     mov     word [bp-16],ax
-    ; TODO: get index and update on the drive
+
+; get the id of the root entry
+.get_id:
+    push    ds
+    push    si
+
+    push    bx
+    mov     bx,ss
+    mov     ds,bx
+    pop     bx
+
+    lea     si,[bp-44]
+    call    fat_getEntryId
+
+    pop     si
+    pop     ds
+
+    ;test    ax,ax
+    cmp     ax,0FFFFh
+    je      .error2
+
+; write the entry to the disk
+.write:
+    push    es
+    push    si
+
+    push    bx
+    mov     bx,ss
+    mov     es,bx
+    pop     bx
+
+    lea     si,[bp-44]
+    call    fat_rootSetEntry
+
+    pop     si
+    pop     es
+
+    mDebug
+
+    test    ax,ax
+    jne     .error3
+
+; successful
+.success:
+    xor     ax,ax
 
 ; return to the caller
 .return:
@@ -740,6 +808,28 @@ fat_fileResize:
 .error:
     mov     ax,0FFFFh
     jmp     .return
+
+; an error occured
+.error0:
+    mov     ax,0FFFEh
+    jmp     .return
+
+; an error occured
+.error1:
+    mov     ax,0FFFDh
+    jmp     .return
+
+; an error occured
+.error2:
+    mov     ax,0FFFCh
+    jmp     .return
+
+; an error occured
+.error3:
+    mov     ax,0FFFBh
+    jmp     .return
+
+; TEST: Failed
 
 
 ;===============================================

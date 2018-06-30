@@ -645,11 +645,14 @@ fat_rootSetEntry:
 
 .validate:
     cmp     ax,0
-    jb      .error
+    jb      .error0
     cmp     ax,word [gs:iFAT_MaxRootEntries]
     jb      .loadSector
 
-.error:
+.error0:
+    call    print_hex
+    call    print_newline
+    
     pop     si
     pop     es
     popa
@@ -658,11 +661,29 @@ fat_rootSetEntry:
     pop     bp
     ret
 
+.error1:
+    pop     si
+    pop     es
+    popa
+    mov     ax,0FFFEh
+    mov     sp,bp
+    pop     bp
+    ret
+
+.error2:
+    pop     si
+    pop     es
+    popa
+    mov     ax,0FFFDh
+    mov     sp,bp
+    pop     bp
+    ret
+
 .loadSector:
     mov     word [bp-2],ax                      ; Store the index
     call    fat_calcRootIndices                 ; Get the indices
     cmp     ax,0FFFFh
-    je      .error
+    je      .error1
 
     mov     word [bp-4],ax                      ; Sector offset
     mov     word [bp-6],cx                      ; Byte offset
@@ -682,9 +703,9 @@ fat_rootSetEntry:
 
     stc
     int     13h
-    jc      .error
+    jc      .error2
     cmp     al,1
-    jne     .error
+    jne     .error2
 
 .copy:                  ; Copy input to the stack buffer
     pop     si
@@ -732,9 +753,9 @@ fat_rootSetEntry:
 
     stc
     int     13h
-    jc      .error
+    jc      .error2
     cmp     al,1
-    jne     .error
+    jne     .error2
 
 .return:
     pop     si
