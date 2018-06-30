@@ -824,6 +824,12 @@ fat_fileResize:
 ; Reworked file writing function.
 ;===============================================
 ;   In:
+;     bp+4  - File data (stack)
+;     bp+6  - File data (offset)
+;     bp+8  - File size
+;     bp+10 - Logical cluster id
+;===============================================
+;   Old:
 ;     ds:si data pointer
 ;     cx    data size
 ;     ax    starting cluster
@@ -834,7 +840,7 @@ fat_fileResize:
 fat_writeData:
     push    bp
     mov     bp,sp
-    sub     sp,4
+    sub     sp,8        ; 2 = return / 4 = buffer ptr / 6 = remaining bytes
     sub     sp,word [gs:iFAT_BytesPerSector]    ; local buffer
     pusha
     push    ds
@@ -842,14 +848,16 @@ fat_writeData:
 
 ; initialize local variables
 .init:
-    mov     word [bp-2],cx      ; data size
-    lea     ax,[bp]
-    sub     ax,word [gs:iFAT_BytesPerSector]
-    sub     ax,4                ; buffer pointer on the stack,
-    mov     word [bp-4],ax      ; prevents recaluclation in the loop
+    lea     ax,[bp-8]
+    sub     ax,word [gs:iFAT_BytesPerSector]    ; buffer pointer on the stack,         
+    mov     word [bp-4],ax                      ; prevents recaluclation in the loop
+    mov     ax,word [bp+8]
+    mov     word [bp-6],ax                      ; copy used for writing
+    mov     ax,word [bp+10]
+    mov     word [bp-8],ax                      ; next cluster id
 
 ; global function loop
-.loop:
+.loop: 
 
 ; clears the local buffer
 .zero:
@@ -863,6 +871,55 @@ fat_writeData:
 ; copy from the data buffer into the local buffer
 .copy:
 
+; determine the number of bytes to copy
+.copy_limit:
+    mov     cx,word [bp+8]
+    cmp     cx,word [gs:iFAT_BytesPerSector]
+    jbe     .copy_execute
+    mov     cx,word [gs:iFAT_BytesPerSector]
+
+; do the actual copying
+.copy_execute:
+    sub     word [bp+8],cx      ; subtract from the remainder
+
+    mov     bx,word [bp+4]
+    mov     ds,bx
+    mov     si,word [bp+6]      ; source
+
+    mov     bx,ss
+    mov     es,bx
+    mov     di,word [bp-4]      ; destination
+
+    rep movsb
+    add     word [bp+6],cx      ; increment the offset
+
+; flush the data in the local buffer onto the drive
+.flush:
+    mov     ax,word [bp+10]     ; logical cluster id
+    call    fat_getClusterValue
+    mov     word [bp-8],ax      ; next cluster
+
+    cmp     ax,0FF7h            ; ensure error free
+    je      .error
+
+    mov     ax,word [bp+10]     ; current cluster
+    
+    mov     bx,ss
+    mov     es,bx
+    mov     si,word [bp-4]      ; source
+
+    call    fat_writeCluster
+    test    ax,ax
+    jne     .error
+
+    mov     ax,word [bp-8]
+    mov     word [bp+10],ax
+
+; should we continue copying
+.continue:
+    mov     cx,word [bp+8]
+    test    cx,cx
+    jne     .loop               ; more bytes are available
 
 ; successful
 .success:

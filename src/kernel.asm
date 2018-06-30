@@ -18,6 +18,7 @@ test_guid   db 'DMMY10  TXT',0
 test_cfile  db 'DMMY11  TXT',0
 test_copy   db 'COPY01  TXT',0
 
+
 ;===============================================
 ; Entry point of the kernel module.
 ;===============================================
@@ -78,7 +79,7 @@ kernel:
 ;    call    exec_cmd
 
 .tests:
-    jmp     .test_new_writeFile
+    jmp     .test_new_writeData
     ;jmp     .keypress
 
 
@@ -211,6 +212,19 @@ kernel:
     call    print_newline
     jmp     .keypress
 
+.test_new_writeData:
+    push    28h         ; DMMY10.TXT / 0x8E00
+    mov     ax,word [data_size]
+    push    ax
+    push    data_buff
+    push    ds
+    call    fat_writeData
+    add     sp,8
+
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
+
 .keypress:
     mov     ah,00h
     int     16h
@@ -221,18 +235,6 @@ kernel:
 
     jmp     $
 
-
-test_call:
-    push    bp
-    mov     bp,sp
-    push    ax
-    mov     ax,word [bp+4]
-    call    print_hex
-    call    print_newline
-    pop     ax
-    mov     sp,bp
-    pop     bp
-    ret
 
 
 ;===============================================
@@ -552,3 +554,11 @@ kernel_interrupts:
 %include "src/kernel/std.inc"
 %include "src/kernel/fat12.inc"
 %include "src/kernel/tests.inc"
+
+
+;===========
+; test_data
+;===========
+;data_buff   db 'This is a test buffer', 0
+data_buff   times 514 db 1
+data_size   dw $-data_buff
