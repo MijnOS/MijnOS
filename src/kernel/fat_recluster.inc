@@ -340,8 +340,6 @@ fat_relocClusters2:
     call    fat_calcClusters
     mov     word [bp-6],ax
 
-    mDebug
-
 ; determine the difference between the currently
 ; number of used and requested number of clusters.
 .difference:
@@ -368,8 +366,6 @@ fat_relocClusters2:
 .higher:
     sub     ax,cx       ; diff = ( reqClusters - numClusters )
     push    ax
-
-    mDebug
 
     mov     ax,word [bp-4]
     call    fat_getLastFileCluster
@@ -450,6 +446,18 @@ fat_createFile:
 ; everything is set to zero, as such we only
 ; need to fill the required fields
 .fillStackEntry:
+; 0-7   BYTE filename
+; 8-10  BYTE extension
+; 11    BYTE attributes
+; 12-13 WORD reserved
+; 14-15 WORD creationTime
+; 16-17 WORD creationDate
+; 18-19 WORD lastAccessDate
+; 20-21 WORD zeros
+; 22-23 WORD lastWriteTime
+; 24-25 WORD lastWriteDate
+; 26-27 WORD firstLogicalCluster
+; 28-31 DWORD fileSize
 
 ; copies the name
 .copy_name:
@@ -528,18 +536,7 @@ fat_createFile:
 .error:
     mov     ax,0FFFFh
     jmp     .return
-; 0-7   BYTE filename
-; 8-10  BYTE extension
-; 11    BYTE attributes
-; 12-13 WORD reserved
-; 14-15 WORD creationTime
-; 16-17 WORD creationDate
-; 18-19 WORD lastAccessDate
-; 20-21 WORD zeros
-; 22-23 WORD lastWriteTime
-; 24-25 WORD lastWriteDate
-; 26-27 WORD firstLogicalCluster
-; 28-31 DWORD fileSize
+; TEST: OK
 
 
 
@@ -611,7 +608,7 @@ fat_fileReadOrCreateEntry:
 .error:
     mov     ax,0FFFFh
     jmp     .return
-; TEST: N/A
+; TEST: OK
 
 
 ;===============================================
@@ -735,14 +732,7 @@ fat_fileResize:
 .resize:
     mov     cx,ax               ; number of clusters needed
     mov     ax,word [bp-18]     ; root/logical sector
-
-    ; cx = 02h
-    ; ax = 17h
-    mDebug
-
     xchg    ax,cx
-
-    mDebug
 
     call    fat_relocClusters2
     test    ax,ax
@@ -789,8 +779,6 @@ fat_fileResize:
     pop     si
     pop     es
 
-    mDebug
-
     test    ax,ax
     jne     .error3
 
@@ -828,8 +816,73 @@ fat_fileResize:
 .error3:
     mov     ax,0FFFBh
     jmp     .return
+; TEST: OK
 
-; TEST: Failed
+
+
+;===============================================
+; Reworked file writing function.
+;===============================================
+;   In:
+;     ds:si data pointer
+;     cx    data size
+;     ax    starting cluster
+;===============================================
+;   Out:
+;     ax - Zero if successful.
+;===============================================
+fat_writeData:
+    push    bp
+    mov     bp,sp
+    sub     sp,4
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; local buffer
+    pusha
+    push    ds
+    push    es
+
+; initialize local variables
+.init:
+    mov     word [bp-2],cx      ; data size
+    lea     ax,[bp]
+    sub     ax,word [gs:iFAT_BytesPerSector]
+    sub     ax,4                ; buffer pointer on the stack,
+    mov     word [bp-4],ax      ; prevents recaluclation in the loop
+
+; global function loop
+.loop:
+
+; clears the local buffer
+.zero:
+    mov     bx,ss
+    mov     es,bx
+    mov     di,word [bp-4]      ; NOTE: stored during initialization
+    xor     ax,ax
+    mov     cx,word [gs:iFAT_BytesPerSector]
+    rep stosb
+
+; copy from the data buffer into the local buffer
+.copy:
+
+
+; successful
+.success:
+    xor     ax,ax
+
+; return to the caller
+.return:
+    pop     es
+    pop     ds
+    popa
+    mov     ax,word [bp-2]
+    mov     sp,bp
+    pop     bp
+    ret
+
+; an error occured
+.error:
+    mov     ax,0FFFFh
+    jmp     .return
+
 
 
 ;===============================================
@@ -842,23 +895,68 @@ fat_fileResize:
 ;     bp+10 - File data (offset)
 ;     bp+12 - File size
 ;===============================================
-;   Old:
-;     ds:si - File name
-;     es:di - File data
-;     cx    - File size
-;===============================================
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
 fat_writeFile2:
     push    bp
     mov     bp,sp
-    sub     sp,2
+    sub     sp,34                               ; return value & file entry
+    sub     sp,word [gs:iFAT_BytesPerSector]    ; local buffer
+    pusha
+    push    ds
+    push    es
+
+; initialize local variables
+.init:
+    mov     word [bp-2],0FFFFh
+
+; either opens or creates a new file for writing
+.open_or_create:
+    mov     bx,word [bp+4]      ; file name
+    mov     ds,bx
+    mov     si,word [bp+6]
+
+    mov     bx,ss
+    mov     es,bx
+    lea     di,[bp-34]
+
+    call    fat_fileReadOrCreateEntry
+    test    ax,ax
+    jne     .error
+
+; the file needs to be resized to hold all data
+.resize:
+    mov     cx,word [bp+12]     ; data size
+    call    fat_fileResize
+    test    ax,ax
+    jne     .error
+
+; write the actual data to the file
+.write:
+    mov     bx,word [bp+8]      ; file data
+    mov     es,bx
+    mov     si,word [bp+10]
+
+.write_loop:
 
 ; TODO:
 
+; reached when all is succesful
+.success:
+    mov     word [bp-2],0
+
 ; return to the caller
 .return:
+    pop     es
+    pop     ds
+    popa
+    mov     ax,word [bp-2]
     mov     sp,bp
     pop     bp
     ret
+
+; an error occured
+.error:
+    mov     word [bp-2],0FFFEh
+    jmp     .return

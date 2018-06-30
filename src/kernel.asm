@@ -14,8 +14,9 @@ test_err    db 'Test failed', 0Dh, 0Ah, 0
 test_var    times 32 db 0
 
 test_name   db 'ABCDEFGHEXT',0
-test_cfile  db 'TEST    TXT',0
 test_guid   db 'DMMY10  TXT',0
+test_cfile  db 'DMMY11  TXT',0
+test_copy   db 'COPY01  TXT',0
 
 ;===============================================
 ; Entry point of the kernel module.
@@ -77,7 +78,7 @@ kernel:
 ;    call    exec_cmd
 
 .tests:
-    jmp     .test_new_getEntryId
+    jmp     .test_new_writeFile
     ;jmp     .keypress
 
 
@@ -142,12 +143,6 @@ kernel:
     call    print_hex
     call    print_newline
 
-.test_new_createFile:
-    mov     si,test_cfile
-    call    fat_createFile
-    call    print_hex
-    call    print_newline
-
 .test_new_getEntryId:
     mov     si,test_guid
     call    fat_getEntryId
@@ -168,13 +163,53 @@ kernel:
     call    print_hex
     call    print_newline
 
-; STATE: FIXED
-;.test_new_realloc_bug:
-;    mov     cx,27h                  ; root cluster
-;    mov     ax,3                    ; size in clusters
-;    call    fat_relocClusters2
-;    call    print_hex
-;    call    print_newline
+.test_new_createFile:
+    mov     si,test_cfile
+    call    fat_createFile
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
+
+.test_new_readOrCreate:
+    push    bp
+    mov     bp,sp
+    sub     sp,32
+
+    mov     bx,ds
+    mov     es,bx
+    lea     di,[bp-32]
+    ;mov     si,test_guid
+    mov     si,test_cfile
+
+    call    fat_fileReadOrCreateEntry
+    call    print_hex
+    call    print_newline
+
+    test    ax,ax
+    jne     .test_new_roc_return
+
+    lea     si,[bp-32]
+    mov     cx,11
+    call    printn
+    call    print_newline
+
+.test_new_roc_return:
+    mov     sp,bp
+    pop     bp
+    jmp     .keypress
+
+.test_new_writeFile:
+    push    01600h      ; file size
+    push    0           ; [ds:0]
+    push    ds          ;   kernel address in memory
+    push    test_copy   ; [ds:test_copy]
+    push    ds          ;   name of the file to write
+    call    fat_writeFile2
+    add     sp,10
+
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
 
 .keypress:
     mov     ah,00h
@@ -186,6 +221,18 @@ kernel:
 
     jmp     $
 
+
+test_call:
+    push    bp
+    mov     bp,sp
+    push    ax
+    mov     ax,word [bp+4]
+    call    print_hex
+    call    print_newline
+    pop     ax
+    mov     sp,bp
+    pop     bp
+    ret
 
 
 ;===============================================
