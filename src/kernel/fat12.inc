@@ -775,14 +775,14 @@ fat_rootSetEntry:
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
-fat_doesFileExist:
-    push    bp
-    mov     bp,sp
+;fat_doesFileExist:
+;    push    bp
+;    mov     bp,sp
 
-.return:
-    mov     sp,bp
-    pop     bp
-    ret
+;.return:
+;    mov     sp,bp
+;    pop     bp
+;    ret
 
 
 
@@ -795,69 +795,69 @@ fat_doesFileExist:
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
-fat_relocClusters:
-    push    bp
-    mov     bp,sp
-    sub     sp,6
-
-    ; Store a copy of the value
-    mov     word [bp-2],ax  ; reqClusters - The requested number of clusters.
-    mov     word [bp-4],cx  ; rootCluster - The starting cluster.
-    mov     word [bp-6],0   ; numClusters - The number of used clusters.
-
-    ; The starting cluster will be our root
-    mov     ax,cx
-
-
-.loop:
-    call    fat_getClusterValue
-    push    ax
-
-    ; Increment the number of used clusters
-    mov     cx,word [bp-6]
-    add     cx,1
-    mov     word [bp-6],cx
-
-    ; Now start comparing the cluster information
-    pop     ax
-
-    ; Take action based on the cluster index
-    cmp     cx,word [bp-2]
-    je      .lof        ; Set the last of file marker
-    ja      .above      ; Clear the cluser value
-
-; This is a cluster used for our current file
-.below:
-    cmp     ax,0        ; The cluster does not have a next
-    je      .allocate   ; cluster following it.
-    cmp     ax,0FF0h    ; The cluster is valid and has an
-    jb      .loop       ; other cluster following it.
-
-.allocate:  ; TODO: We need to allocate another cluster and link it...
-
-
-    jmp     .loop
-
-; This is a cluster previously used by our file
-.above:
-    push    ax
-    mov     cx,0
-    call    fat_setClusterValue
-    pop     ax
-    jmp     .loop
-
-; The current cluster is the last cluster of the file.
-.lof:
-    push    ax          ; Save it, we may need it for further processing
-    mov     cx,0FFFh
-    call    fat_setClusterValue
-    pop     ax
-    jmp     .loop
-
-.return:
-    mov     sp,bp
-    pop     bp
-    ret
+;fat_relocClusters:
+;    push    bp
+;    mov     bp,sp
+;    sub     sp,6
+;
+;    ; Store a copy of the value
+;    mov     word [bp-2],ax  ; reqClusters - The requested number of clusters.
+;    mov     word [bp-4],cx  ; rootCluster - The starting cluster.
+;    mov     word [bp-6],0   ; numClusters - The number of used clusters.
+;
+;    ; The starting cluster will be our root
+;    mov     ax,cx
+;
+;
+;.loop:
+;    call    fat_getClusterValue
+;    push    ax
+;
+;    ; Increment the number of used clusters
+;    mov     cx,word [bp-6]
+;    add     cx,1
+;    mov     word [bp-6],cx
+;
+;    ; Now start comparing the cluster information
+;    pop     ax
+;
+;    ; Take action based on the cluster index
+;    cmp     cx,word [bp-2]
+;    je      .lof        ; Set the last of file marker
+;    ja      .above      ; Clear the cluser value
+;
+;; This is a cluster used for our current file
+;.below:
+;    cmp     ax,0        ; The cluster does not have a next
+;    je      .allocate   ; cluster following it.
+;    cmp     ax,0FF0h    ; The cluster is valid and has an
+;    jb      .loop       ; other cluster following it.
+;
+;.allocate:  ; TODO: We need to allocate another cluster and link it...
+;
+;
+;    jmp     .loop
+;
+;; This is a cluster previously used by our file
+;.above:
+;    push    ax
+;    mov     cx,0
+;    call    fat_setClusterValue
+;    pop     ax
+;    jmp     .loop
+;
+;; The current cluster is the last cluster of the file.
+;.lof:
+;    push    ax          ; Save it, we may need it for further processing
+;    mov     cx,0FFFh
+;    call    fat_setClusterValue
+;    pop     ax
+;    jmp     .loop
+;
+;.return:
+;    mov     sp,bp
+;    pop     bp
+;    ret
 
 
 
@@ -870,186 +870,186 @@ fat_relocClusters:
 ;   Out:
 ;     ax - Zero if successful.
 ;===============================================
-fat_writeFile:
-    push    bp
-    mov     bp,sp
-    sub     sp,46
-    push    bx
-
-    mov     word [bp-2],cx
-
-; Check if file with that name already exists.
-.findExisting:
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]                          ; [es:di] = FAT entry
-    call    fat_searchEntry                     ; Searches the root directory for a file with
-    pop     es                                  ; the given name.
-    
-    test    ax,ax
-    je      .fileExists
-
-; File does not exist, get the id of the first empty entry
-.fileNotFound:
-    call    fat_findEmptyFileEntry              ; Searches for an empty spot in the root directory
-    test    ax,0FFFFh                           ; No empty space found
-    je      .error0                             ; Otherwise, ax is now the index
-    mov     word [bp-46],ax                     ;   of the first empty spot.
-
-    call    fat_findEmptyCluster
-    cmp     ax,07FFFh
-    jge     .error0
-    mov     word [bp-4],ax
-
-; Fills the entry with basic file information
-.fillFileEntry:
-    ; 0-7   BYTE filename
-    ; 8-10  BYTE extension
-    ; 11    BYTE attributes
-    ; 12-13 WORD reserved
-    ; 14-15 WORD creationTime
-    ; 16-17 WORD creationDate
-    ; 18-19 WORD lastAccessDate
-    ; 20-21 WORD zeros
-    ; 22-23 WORD lastWriteTime
-    ; 24-25 WORD lastWriteDate
-    ; 26-27 WORD firstLogicalCluster
-    ; 28-31 DWORD fileSize
-
-    ; 1) Clear the entry
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]                          ; [es:di] = FAT entry
-    mov     cx,32
-.clear_loop:
-    mov     byte [es:di],0
-    add     di,1
-    sub     cx,1
-    jne     .clear_loop
-    pop     es
-
-    ; 2) Copy the name
-    push    es
-    push    si
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]
-    mov     cx,8        ; Do not copy extension!
-.copy_name:
-    mov     al,byte [ds:si]
-    mov     byte [es:di],al
-    add     si,1
-    add     di,1
-    sub     cx,1
-    jne     .copy_name
-    pop     si
-    pop     es
-
-    ; 3) Set type to ARCHIVE (aka file)
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]
-    add     di,11
-    mov     byte [es:di],020h
-    pop     es
-
-    ; 4) Set the file size
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]
-    add     di,28
-    ;mov     cx,word [bp-2]
-    ;mov     word [es:di],cx
-    mov     word [es:di],512        ; single cluster
-    mov     word [es:di+2],0        ; upper 16-bits
-    pop     es
-
-    ; 5) Set the first cluster
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    lea     di,[bp-44]
-    add     di,26
-    mov     ax,word [bp-4]
-    mov     word [es:di],ax
-    mov     cx,0FFFh
-    call    fat_setClusterValue
-    pop     es
-
-    ; 6) Write the entry
-    push    es
-    mov     bx,ss
-    mov     es,bx
-    mov     ax,word [bp-46]     ; index
-    lea     si,[bp-44]
-    call    fat_rootSetEntry     ; Write the entry to the disk
-    pop     es
-
-
-; If it does, get the size and check if it changed, if changed
-; allocate or free FAT clusters accordingly.
-.fileExists:
-    ; When it comes here the information about the entry
-    ; is stored in the location [es:di]
-
-.clusers0:
-    ; Determine the number of clusters needed
-    xor     dx,dx
-    mov     ax,word [bp-2]                      ; size of the file to write
-    mov     cx,word [gs:iFAT_BytesPerSector]    ; ax = number of clusters needed
-    div     cx                                  ; dx = modulo
-    
-    ; TODO: FIXME: jump
-    test    dx,dx                               ; If dx is not zero it means we
-    je      .clusers1                           ; need to allocate another
-    add     ax,1                                ; cluster for storing data.
-
-.clusers1:
-    push    ax                                  ; Save the new number of clusters
-
-    ; Determine the number of clusters currently used
-    xor     dx,dx
-    mov     ax,word [bp-14]                     ; -44 + 30 = -14
-    mov     cx,word [gs:iFAT_BytesPerSector]
-    div     cx
-
-    test    dx,dx
-    je      .clusters_calc
-    add     ax,1
-
-.clusters_calc:
-    mov     cx,ax       ; Current
-    pop     ax          ; Needed
-
-    cmp     ax,cx       ; If the same number of clusters are used,
-    je      .writeData  ; just start writing the data.
-
-; ax now holds the number of clusters needed,
-; we need to check each root entry till we match
-; the new number. If the new number is lower than
-; the old number we must overwrite the last cluster
-; value to become the last of file. For the sake
-; of easiness we do not free other clusters.
-.allocClusters:
-
-
-
-
-
-.writeData:
-; 3) Write the data to the allocated clusters.
-; TODO:
-
-.error0:
-.return:
-    pop     bx
-    mov     sp,bp
-    pop     bp
-    ret
+;fat_writeFile:
+;    push    bp
+;    mov     bp,sp
+;    sub     sp,46
+;    push    bx
+;
+;    mov     word [bp-2],cx
+;
+;; Check if file with that name already exists.
+;.findExisting:
+;    push    es
+;    mov     bx,ss
+;    mov     es,bx
+;    lea     di,[bp-44]                          ; [es:di] = FAT entry
+;    call    fat_searchEntry                     ; Searches the root directory for a file with
+;    pop     es                                  ; the given name.
+;    
+;    test    ax,ax
+;    je      .fileExists
+;
+;; File does not exist, get the id of the first empty entry
+;.fileNotFound:
+;    call    fat_findEmptyFileEntry              ; Searches for an empty spot in the root directory
+;    test    ax,0FFFFh                           ; No empty space found
+;    je      .error0                             ; Otherwise, ax is now the index
+;    mov     word [bp-46],ax                     ;   of the first empty spot.
+;
+;    call    fat_findEmptyCluster
+;    cmp     ax,07FFFh
+;    jge     .error0
+;    mov     word [bp-4],ax
+;
+;; Fills the entry with basic file information
+;.fillFileEntry:
+;    ; 0-7   BYTE filename
+;    ; 8-10  BYTE extension
+;    ; 11    BYTE attributes
+;    ; 12-13 WORD reserved
+;    ; 14-15 WORD creationTime
+;    ; 16-17 WORD creationDate
+;    ; 18-19 WORD lastAccessDate
+;    ; 20-21 WORD zeros
+;    ; 22-23 WORD lastWriteTime
+;    ; 24-25 WORD lastWriteDate
+;    ; 26-27 WORD firstLogicalCluster
+;    ; 28-31 DWORD fileSize
+;
+;    ; 1) Clear the entry
+;    push    es
+;    mov     bx,ss
+;    mov     es,bx
+;    lea     di,[bp-44]                          ; [es:di] = FAT entry
+;    mov     cx,32
+;.clear_loop:
+;    mov     byte [es:di],0
+;    add     di,1
+;    sub     cx,1
+;    jne     .clear_loop
+;    pop     es
+;
+;    ; 2) Copy the name
+;    push    es
+;    push    si
+;    mov     bx,ss
+;    mov     es,bx
+;    lea     di,[bp-44]
+;    mov     cx,8        ; Do not copy extension!
+;.copy_name:
+;    mov     al,byte [ds:si]
+;    mov     byte [es:di],al
+;    add     si,1
+;    add     di,1
+;    sub     cx,1
+;    jne     .copy_name
+;    pop     si
+;    pop     es
+;
+;    ; 3) Set type to ARCHIVE (aka file)
+;    push    es
+;    mov     bx,ss
+;    mov     es,bx
+;    lea     di,[bp-44]
+;    add     di,11
+;    mov     byte [es:di],020h
+;    pop     es
+;
+;    ; 4) Set the file size
+;    push    es
+;    mov     bx,ss
+;    mov     es,bx
+;    lea     di,[bp-44]
+;    add     di,28
+;    ;mov     cx,word [bp-2]
+;    ;mov     word [es:di],cx
+;    mov     word [es:di],512        ; single cluster
+;    mov     word [es:di+2],0        ; upper 16-bits
+;    pop     es
+;
+;    ; 5) Set the first cluster
+;    push    es
+;    mov     bx,ss
+;    mov     es,bx
+;    lea     di,[bp-44]
+;    add     di,26
+;    mov     ax,word [bp-4]
+;    mov     word [es:di],ax
+;    mov     cx,0FFFh
+;    call    fat_setClusterValue
+;    pop     es
+;
+;    ; 6) Write the entry
+;    push    es
+;    mov     bx,ss
+;    mov     es,bx
+;    mov     ax,word [bp-46]     ; index
+;    lea     si,[bp-44]
+;    call    fat_rootSetEntry     ; Write the entry to the disk
+;    pop     es
+;
+;
+;; If it does, get the size and check if it changed, if changed
+;; allocate or free FAT clusters accordingly.
+;.fileExists:
+;    ; When it comes here the information about the entry
+;    ; is stored in the location [es:di]
+;
+;.clusers0:
+;    ; Determine the number of clusters needed
+;    xor     dx,dx
+;    mov     ax,word [bp-2]                      ; size of the file to write
+;    mov     cx,word [gs:iFAT_BytesPerSector]    ; ax = number of clusters needed
+;    div     cx                                  ; dx = modulo
+;    
+;    ; TODO: FIXME: jump
+;    test    dx,dx                               ; If dx is not zero it means we
+;    je      .clusers1                           ; need to allocate another
+;    add     ax,1                                ; cluster for storing data.
+;
+;.clusers1:
+;    push    ax                                  ; Save the new number of clusters
+;
+;    ; Determine the number of clusters currently used
+;    xor     dx,dx
+;    mov     ax,word [bp-14]                     ; -44 + 30 = -14
+;    mov     cx,word [gs:iFAT_BytesPerSector]
+;    div     cx
+;
+;    test    dx,dx
+;    je      .clusters_calc
+;    add     ax,1
+;
+;.clusters_calc:
+;    mov     cx,ax       ; Current
+;    pop     ax          ; Needed
+;
+;    cmp     ax,cx       ; If the same number of clusters are used,
+;    je      .writeData  ; just start writing the data.
+;
+;; ax now holds the number of clusters needed,
+;; we need to check each root entry till we match
+;; the new number. If the new number is lower than
+;; the old number we must overwrite the last cluster
+;; value to become the last of file. For the sake
+;; of easiness we do not free other clusters.
+;.allocClusters:
+;
+;
+;
+;
+;
+;.writeData:
+;; 3) Write the data to the allocated clusters.
+;; TODO:
+;
+;.error0:
+;.return:
+;    pop     bx
+;    mov     sp,bp
+;    pop     bp
+;    ret
 
 
 

@@ -969,6 +969,10 @@ fat_writeFile2:
     push    ds
     push    es
 
+    mov     ax,word [bp+8]
+    mDebug
+    call    print_newline
+
 ; initialize local variables
 .init:
     mov     word [bp-2],0FFFFh
@@ -1000,12 +1004,24 @@ fat_writeFile2:
     ;mov     es,bx
     ;mov     si,word [bp+10]
 
-    lea     bx,[bp-8]
-    mov     ax,word [ss:bx]
+    mov     ax,word [bp-8]
     push    ax              ; first logical sector
-    push    word [bp+12]    ; data size
-    push    word [bp+10]    ; data offset
-    push    word [bp+8]     ; data stack
+    mDebug
+
+    mov     ax,word [bp+12]
+    push    ax              ; data size
+    mDebug
+
+    mov     ax,word [bp+10]
+    push    ax              ; data offset
+    mDebug
+
+    mov     ax,word [bp+8]
+    push    ax              ; data stack
+    mDebug
+
+    call    print_newline
+
     call    fat_writeData
     add     sp,8
 
