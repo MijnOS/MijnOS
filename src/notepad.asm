@@ -2,6 +2,11 @@
 ; [ORG 0x15E00]
 jmp main
 
+;===============================================
+; PREFIXES
+;   np = NotePad
+;   fn = FileName
+;===============================================
 %include "src\const.inc"
 %define BUFFER_SIZE     512
 text_buffer times BUFFER_SIZE db 0              ; Buffer the user writes to when pressing a key
@@ -17,6 +22,19 @@ file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl
 cursor_pos  dw 0                                ; Cursor position
 %define MENU_COLOR  070h
 text_ferr   dw 0
+
+
+;===============================================
+; Clears the screen
+;===============================================
+%macro mClearScreen 0
+
+    push    ax
+    mov     ax,INT_CLEAR_SCREEN
+    int     70h
+    pop     ax
+
+%endmacro
 
 
 ;===============================================
@@ -68,7 +86,7 @@ exit:
 ;===============================================
 ; Stores the cursor position.
 ;===============================================
-util_setCursor:
+util_getCursor:
     mov     ax,INT_GET_CURSOR_POS
     int     70h
     mov     word [cursor_pos],dx
@@ -78,7 +96,7 @@ util_setCursor:
 ;===============================================
 ; Restores the cursor position.
 ;===============================================
-util_getCursor:
+util_setCursor:
     mov     dx,word [cursor_pos]
     mov     ax,INT_SET_CURSOR_POS
     int     70h
@@ -94,6 +112,7 @@ np_drawChar:
     cmp     ax,7Fh                              ; Opt. 2) Complex, language characters
     jae     np_complexChar
     jmp     np_simpleChar                       ; Opt. 3) It's a simple character
+
 
 
 ;===============================================
@@ -433,7 +452,7 @@ handle_menu:
     ; TODO:
     call    fn_typing
     test    ax,ax
-    je      .loop
+    jne     .loop
     ;call    np_writeFile
     jmp     .m_close
 
@@ -442,10 +461,9 @@ handle_menu:
     ; TODO:
     call    fn_typing
     test    ax,ax
-    je      .loop
+    jne     .loop
     ;call    np_loadFile
     jmp     .m_close
-
 
 ; Quit the application
 .m_quit:
