@@ -79,7 +79,7 @@ kernel:
 ;    call    exec_cmd
 
 .tests:
-    jmp     .test_new_writeData
+    jmp     .test_new_fileResize
     ;jmp     .keypress
 
 
@@ -158,11 +158,12 @@ kernel:
 
 .test_new_fileResize:
     mov     si,test_guid
-    mov     cx,1000
+    mov     cx,word [data_size]
     pop     ax
     call    fat_fileResize
     call    print_hex
     call    print_newline
+    jmp     .test_new_writeData
 
 .test_new_createFile:
     mov     si,test_cfile
@@ -213,7 +214,7 @@ kernel:
     jmp     .keypress
 
 .test_new_writeData:
-    push    28h         ; DMMY10.TXT / 0x8E00
+    push    29h         ; DMMY10.TXT / 0x8E00
     mov     ax,word [data_size]
     push    ax
     push    data_buff
@@ -560,5 +561,6 @@ kernel_interrupts:
 ; test_data
 ;===========
 ;data_buff   db 'This is a test buffer', 0
-data_buff   times 514 db 1
+data_buff   times 510 db 1
+.cluster1   times 4 db 2
 data_size   dw $-data_buff

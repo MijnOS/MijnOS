@@ -886,15 +886,19 @@ fat_writeData:
     mov     ds,bx
     mov     si,word [bp+6]      ; source
 
+    add     word [bp+6],cx      ; increment the offset
+
     mov     bx,ss
     mov     es,bx
     mov     di,word [bp-4]      ; destination
 
     rep movsb
-    add     word [bp+6],cx      ; increment the offset
-
+    
 ; flush the data in the local buffer onto the drive
 .flush:
+    mov     ax,01234h
+    mDebug
+
     mov     ax,word [bp+10]     ; logical cluster id
     call    fat_getClusterValue
     mov     word [bp-8],ax      ; next cluster
@@ -918,12 +922,12 @@ fat_writeData:
 ; should we continue copying
 .continue:
     mov     cx,word [bp+8]
-    test    cx,cx
-    jne     .loop               ; more bytes are available
+    cmp     cx,0
+    ja      .loop               ; more bytes are available
 
 ; successful
 .success:
-    xor     ax,ax
+    mov     word [bp-2],0
 
 ; return to the caller
 .return:
@@ -937,8 +941,9 @@ fat_writeData:
 
 ; an error occured
 .error:
-    mov     ax,0FFFFh
+    mov     word [bp-2],0FFFFh
     jmp     .return
+; TEST: OK
 
 
 
