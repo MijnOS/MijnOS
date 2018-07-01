@@ -585,7 +585,7 @@ fat_fileReadOrCreateEntry:
     lea     ax,[bp-44]
     mov     si,ax
 
-    mov     cx,44
+    mov     cx,32
     rep movsb
 
     pop     cx
@@ -896,9 +896,6 @@ fat_writeData:
     
 ; flush the data in the local buffer onto the drive
 .flush:
-    mov     ax,01234h
-    mDebug
-
     mov     ax,word [bp+10]     ; logical cluster id
     call    fat_getClusterValue
     mov     word [bp-8],ax      ; next cluster
@@ -946,7 +943,6 @@ fat_writeData:
 ; TEST: OK
 
 
-
 ;===============================================
 ; Reworked file writing function.
 ;===============================================
@@ -968,10 +964,6 @@ fat_writeFile2:
     pusha
     push    ds
     push    es
-
-    mov     ax,word [bp+8]
-    mDebug
-    call    print_newline
 
 ; initialize local variables
 .init:
@@ -1004,24 +996,10 @@ fat_writeFile2:
     ;mov     es,bx
     ;mov     si,word [bp+10]
 
-    mov     ax,word [bp-8]
-    push    ax              ; first logical sector
-    mDebug
-
-    mov     ax,word [bp+12]
-    push    ax              ; data size
-    mDebug
-
-    mov     ax,word [bp+10]
-    push    ax              ; data offset
-    mDebug
-
-    mov     ax,word [bp+8]
-    push    ax              ; data stack
-    mDebug
-
-    call    print_newline
-
+    push    word [bp-8]         ; first logical sector
+    push    word [bp+12]        ; data size
+    push    word [bp+10]        ; data offset
+    push    word [bp+8]         ; data stack
     call    fat_writeData
     add     sp,8
 
@@ -1046,3 +1024,4 @@ fat_writeFile2:
 .error:
     mov     word [bp-2],0FFFEh
     jmp     .return
+; TEST: OK

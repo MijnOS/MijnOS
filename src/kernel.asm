@@ -38,27 +38,28 @@ kernel:
 ;    call    register_interrupts
 ;    call    exec_cmd
 
-.tests:
+.tests_start:
     jmp     .test_new_writeFile
 
 .test_new_writeFile:
-    mov     ax,word [ds:data_size]    
-    push    ax                      ; file size
-
-    mov     ax,data_buff
-    push    ax                      ; data offset
+    push    word [data_size]        ; file size
+    push    data_buff               ; data offset
     push    ds                      ; data stack
-
-    mov     ax,data_name
-    push    ax                      ; file name offset
+    push    data_name               ; file name offset
     push    ds                      ; file name stack
-
     call    fat_writeFile2
     add     sp,10
 
     call    print_hex
     call    print_newline
-    jmp     .keypress
+    jmp     .tests_end
+
+    ; int fat_writeFile2( 0x202, 0x14C9, 0xAE0, 0x14BD, 0xAE0 )
+
+.tests_end:
+    mov     si,test_name
+    call    print
+    call    print_newline
 
 .keypress:
     mov     ah,00h
