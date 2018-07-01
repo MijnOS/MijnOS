@@ -23,9 +23,10 @@ text_ferr   dw 0
 ; Entry point
 ;===============================================
 main:
-    push    si
-    push    ax
+    push    bp
+    mov     bp,sp
 
+; initialize the program
 .init:
     mov     ax,INT_CLEAR_SCREEN
     int     70h                                 ; Ensure te screen is clear
@@ -33,6 +34,7 @@ main:
     mov     ax,INT_SET_CURSOR_POS
     int     70h                                 ; Ensure we are top-left
 
+; programs main loop
 .loop:
     mov     cl,byte [opt_menu]                  ; Opt. 1) Check if the menu is opened
     test    cl,cl
@@ -44,11 +46,11 @@ main:
 
     mov     ax,INT_KEYPRESS                     ; 1) Wait for a key.
     int     70h
-
-.raw:
     call    np_drawChar
-    jmp     .loop
 
+    jmp     .loop                               ; continue the program loop
+
+; menu handling code
 .h_menu:
     call    handle_menu
     jmp     .loop
@@ -58,8 +60,8 @@ main:
 ;   The dot is missing so we can exit from
 ;   anywhere within the program.
 exit:
-    pop     ax
-    pop     si
+    mov     sp,bp
+    pop     bp
     retf
 
 
@@ -87,17 +89,11 @@ util_getCursor:
 ; Draws the character to the screen if necessary
 ;===============================================
 np_drawChar:
-    cmp     ax,20h
-    jb      .complex
-    cmp     ax,7Fh
-    jae     .complex
-    call    np_simpleChar                       ; Opt. 1) It's a simple character
-    ret
-
-.complex:                                       ; Opt. 2) Complex, control characters
-    call    np_complexChar
-    ret
-
+    cmp     ax,20h                              ; Opt. 1) Complex, control characters
+    jb      np_complexChar
+    cmp     ax,7Fh                              ; Opt. 2) Complex, language characters
+    jae     np_complexChar
+    jmp     np_simpleChar                       ; Opt. 3) It's a simple character
 
 
 ;===============================================
@@ -307,9 +303,19 @@ np_keyEscape:
 ; Closes the menu and redraws all the contents
 ;===============================================
 np_closeMenu:
-    mov     byte [opt_menu],0
-    call    util_getCursor
+    push    ax
+    mov     byte [opt_menu],0       ; always hide the menu
+    
+    mov     al,byte [opt_quit]
+    test    al,al
+    jne     .return
+
+.redraw:
+    call    util_getCursor          ; only execute when not quiting
     call    np_refillScreen
+
+.return:
+    pop     ax
     ret
 
 
@@ -402,8 +408,10 @@ handle_menu:
 ; Menu options can be caught here
     cmp     cx,KEY_UC_Q                         ; QUIT
     je      .m_quit
+    ;je      exit
     cmp     cx,KEY_LC_Q
     je      .m_quit
+    ;je      exit
 
     cmp     cx,KEY_UC_W                         ; WRITE
     je      .m_write    

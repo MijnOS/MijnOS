@@ -254,7 +254,7 @@ start_program:
 cmd_callProgram:
 
     ; 1) Store the registers
-    pusha
+    pusha               ; ax, bx, cx, dx, sp, bp, si, di
     push    es
     push    ds
     mov     word [ds:cmd_regs],sp

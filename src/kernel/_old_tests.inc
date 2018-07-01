@@ -3,6 +3,9 @@ test_guid   db 'DMMY10  TXT',0
 test_cfile  db 'DMMY11  TXT',0
 
 
+.tests_start:
+    jmp     .test_new_writeFile
+
 ;    mov     bx,ds
 ;    mov     es,bx
 ;    mov     di,test_var
@@ -169,3 +172,23 @@ test_cfile  db 'DMMY11  TXT',0
     call    print_hex
     call    print_newline
     jmp     .keypress
+
+.test_new_writeFile:
+    push    word [data_size]        ; file size
+    push    data_buff               ; data offset
+    push    ds                      ; data stack
+    push    data_name               ; file name offset
+    push    ds                      ; file name stack
+    call    fat_writeFile2
+    add     sp,10
+
+    call    print_hex
+    call    print_newline
+    jmp     .tests_end
+
+    ; int fat_writeFile2( 0x202, 0x14C9, 0xAE0, 0x14BD, 0xAE0 )
+
+.tests_end:
+    mov     si,test_name
+    call    print
+    call    print_newline
