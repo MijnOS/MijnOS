@@ -200,19 +200,6 @@ kernel:
     pop     bp
     jmp     .keypress
 
-.test_new_writeFile:
-    push    01600h      ; file size
-    push    0           ; [ds:0]
-    push    ds          ;   kernel address in memory
-    push    test_copy   ; [ds:test_copy]
-    push    ds          ;   name of the file to write
-    call    fat_writeFile2
-    add     sp,10
-
-    call    print_hex
-    call    print_newline
-    jmp     .keypress
-
 .test_new_writeData:
     push    29h         ; DMMY10.TXT / 0x8E00
     mov     ax,word [data_size]
@@ -221,6 +208,19 @@ kernel:
     push    ds
     call    fat_writeData
     add     sp,8
+
+    call    print_hex
+    call    print_newline
+    jmp     .keypress
+
+.test_new_writeFile:
+    push    word [ds:data_size]     ; file size
+    push    data_buff               ; [ds:0]
+    push    ds                      ;   kernel address in memory
+    push    test_copy               ; [ds:test_copy]
+    push    ds                      ;   name of the file to write
+    call    fat_writeFile2
+    add     sp,10
 
     call    print_hex
     call    print_newline

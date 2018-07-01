@@ -821,7 +821,7 @@ fat_fileResize:
 
 
 ;===============================================
-; Reworked file writing function.
+; Writes data onto the storage medium.
 ;===============================================
 ;   In:
 ;     bp+4  - File data (stack)
@@ -996,13 +996,21 @@ fat_writeFile2:
 
 ; write the actual data to the file
 .write:
-    mov     bx,word [bp+8]      ; file data
-    mov     es,bx
-    mov     si,word [bp+10]
+    ;mov     bx,word [bp+8]      ; file data
+    ;mov     es,bx
+    ;mov     si,word [bp+10]
 
-.write_loop:
+    lea     bx,[bp-8]
+    mov     ax,word [ss:bx]
+    push    ax              ; first logical sector
+    push    word [bp+12]    ; data size
+    push    word [bp+10]    ; data offset
+    push    word [bp+8]     ; data stack
+    call    fat_writeData
+    add     sp,8
 
-; TODO:
+    test    ax,ax
+    jne     .error
 
 ; reached when all is succesful
 .success:
