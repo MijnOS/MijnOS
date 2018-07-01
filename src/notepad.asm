@@ -547,15 +547,15 @@ fn_typing:
     cmp     ax,KEY_BACKSPACE
     je      .back
 
-    call    fn_append
-    cmp     ax,0
-    je      .continue
-
 .limit:
     mov     cx,word [file_buff.count]
     add     cx,1
     cmp     cx,word [file_buff.length]
     jae     .continue
+
+    call    fn_append
+    cmp     ax,0
+    je      .continue
 
     mov     cx,ax
     mov     bx,MENU_COLOR
@@ -570,6 +570,7 @@ fn_typing:
     sub     bx,1
     cmp     bx,0
     jl      .loop                               ; Do nothing when there is nothing
+
     mov     byte [file_buff+bx],0
     mov     word [file_buff.count],bx
     mov     si,text_bbuf                        ; Remove the character from the screen
@@ -599,21 +600,36 @@ fn_append:
     sub     sp,2
     pusha
 
-; lowercase
+.init:
+    mov     word [bp-2],0
+
+; period, extension sep
+.period:
+    cmp     ax,KEY_PERIOD
+    je      .append     ; character is [.]
+
+; numbers
 .0:
-    cmp     ax,KEY_LC_A
-    jl      .1
-    cmp     ax,KEY_LC_Z
-    ja      .return     ; Invalid
-    sub     ax,020h
-    jmp     .append
+    cmp     ax,KEY_0
+    jl      .return
+    cmp     ax,KEY_9
+    jle     .append     ; character is [0-9]
 
 ; uppercase
 .1:
     cmp     ax,KEY_UC_A
-    jl      .2
+    jl      .return
     cmp     ax,KEY_UC_Z
-    ja      .return
+    jle     .append     ; character is [A-Z]
+
+; lowercase
+.2:
+    cmp     ax,KEY_LC_A
+    jl      .return
+    cmp     ax,KEY_LC_Z
+    ja      .return     ; invalid character
+    sub     ax,020h     ; convert [a-z] to [A-Z]
+    jmp     .append
 
 ; append the character to the buffer
 .append:
@@ -627,21 +643,14 @@ fn_append:
     add     bx,1
     mov     word [file_buff.count],bx
 
+; only reaches here when successful
+.success:
     mov     word [bp-2],ax
-    popa
-    mov     ax,word [bp-2]
-    mov     sp,bp
-    pop     bp
-    ret
 
-; period, extension sep
-.2:
-    cmp     ax,KEY_PERIOD
-    je      .append
-
+; return to caller
 .return:
     popa
-    xor     ax,ax
+    mov     ax,word [bp-2]
     mov     sp,bp
     pop     bp
     ret
