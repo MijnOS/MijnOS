@@ -22,6 +22,7 @@ file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl
 cursor_pos  dw 0                                ; Cursor position
 %define MENU_COLOR  070h
 text_ferr   dw 0
+backspace_workaround    db 0                    ; indicates if we need to work around the backspace issue
 
 
 ;===============================================
@@ -88,6 +89,14 @@ main:
     int     70h
     call    np_drawChar
 
+.workaround:
+    mov     al,byte [backspace_workaround]
+    test    al,al
+    je      .continue
+    mov     byte [backspace_workaround],0
+    call    np_refillScreen                     ; updates the cursor as well..
+
+.continue:
     jmp     .loop                               ; continue the program loop
 
 ; menu handling code
@@ -258,11 +267,12 @@ np_keyBackspace:
     mov     word [di],0
     sub     word [text_size],1
 
+    ; workaround
+    mov     byte [backspace_workaround],1
+
     mov     si,text_bbuf
     mov     ax,INT_PRINT_STRING
     int     70h
-
-    ; TODO: move cursor to previous line
 
     sub     di,1
     mov     al,byte [di]                        ; We must check the input,
@@ -277,7 +287,6 @@ np_keyBackspace:
     int     70h
 
     jmp     .return
-
 
 
 ;===============================================
