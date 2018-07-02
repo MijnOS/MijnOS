@@ -58,76 +58,6 @@ text_ferr   dw 0
 %endmacro
 
 
-%macro mDebugHex 0
-
-    push    ax
-    push    cx
-    
-    mov     cx,ax
-    mov     ax,INT_PRINT_HEX
-    int     70h
-
-    mov     ax,INT_KEYPRESS
-    int     70h
-
-    pop     cx
-    pop     ax
-
-%endmacro
-
-
-%macro mDebugName 0
-
-    ; 0) initialize
-    push    bp
-    mov     bp,sp
-    sub     sp,12       ; 11 but need 2-byte alignment
-    push    ax
-
-    ; 1) conversion
-    push    es
-    push    si
-
-    push    bx
-    mov     bx,ss
-    mov     es,bx
-    pop     bx
-
-    lea     di,[bp-12]
-    mov     si,file_buff
-    
-    call    cmd_convertString
-
-    pop     si
-    pop     es
-
-    ; 2) display
-    push    ds
-    push    si
-    
-    push    bx
-    mov     bx,ss
-    mov     ds,bx
-    pop     bx
-
-    lea     si,[bp-12]
-    mov     ax,INT_PRINT_STRING
-    int     70h
-
-    pop     si
-    pop     ds
-
-    ; 3) await
-    mov     ax,INT_KEYPRESS
-    int     70h
-
-    ; 4) return
-    pop     ax
-    mov     sp,bp
-    pop     bp
-
-%endmacro
-
 
 ;===============================================
 ; Entry point
@@ -252,7 +182,7 @@ np_complexChar:
 .2:
     cmp     ax,0Ah      ; KEY_NEWLINE
     jne     .3
-    call    np_keyNewline
+    ;call    np_keyNewline
     jmp     .return
 
 .3:
@@ -295,7 +225,9 @@ np_keyBackspace:
     mov     al,byte [di]
     cmp     al,09h      ; KEY_TAB
     je      .tab
-    cmp     al,0Ah      ; \r\n
+    cmp     al,0Ah      ; \n
+    je      .newline
+    cmp     al,0Dh      ; \r
     je      .newline
 
     mov     si,text_bbuf
@@ -329,6 +261,8 @@ np_keyBackspace:
     mov     si,text_bbuf
     mov     ax,INT_PRINT_STRING
     int     70h
+
+    ; TODO: move cursor to previous line
 
     sub     di,1
     mov     al,byte [di]                        ; We must check the input,
@@ -631,9 +565,6 @@ np_loadFile:
 ; Writes a file from the medium.
 ;===============================================
 np_writeFile:
-    ;mDebugName
-    ;ret
-
     push    bp
     mov     bp,sp
     sub     sp,12
@@ -679,10 +610,6 @@ np_writeFile:
     mov     sp,bp
     pop     bp
     ret
-
-np_tName    db 'D0123456TXT',0
-np_tData    db 'Test from NP',0
-.size       dw $-np_tData-1
 
 
 ;===============================================
