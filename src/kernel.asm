@@ -141,11 +141,10 @@ kernel_interrupts:
     mov     gs,bx
     pop     bx
 
-    cmp     ax,INT_FILE_SIZE
-    je      .getFileSize
-
     cmp     ax,INT_LOAD_FILE
     je      .loadFile
+    cmp     ax,INT_READ_FILE
+    je      .readFile
     cmp     ax,INT_WRITE_FILE
     je      .writeFile
     cmp     ax,INT_EXEC_PROGRAM
@@ -187,9 +186,6 @@ kernel_interrupts:
     iret
 
 
-.getFileSize:
-    jmp     .return
-
 ; short ax loadFile( void * es:di , char * ds:si )
 ; short ax loadFile( void * dest, char * error )
 .loadFile:
@@ -200,13 +196,70 @@ kernel_interrupts:
     pop     bx
     jmp     .return
 
+
+; Reads a file into memory
+;   In:
+;     [ds:si] - File_name
+;     [es:di] - File_data
+;     cx - Maximum number of bytes
+;   Out:
+;     ax - File_size (-1 if error)
+.readFile:
+    push    bp
+    mov     bp,sp
+    sub     sp,4
+
+    mov     word [bp-2],0FFFFh
+    mov     word [bp-4],cx
+
+.ro_size:
+    call    fat_getFileSize
+    cmp     ax,0FFFFh
+    je      .ro_return          ; error
+    cmp     ax,cx
+    ja      .ro_return          ; prevent buffer overflow
+    mov     word [bp-2],ax
+
+.ro_read:
+    call    fat_loadFile
+    test    ax,ax
+    je      .ro_return          ; error
+
+    ; an error occured, reset the size
+    mov     word [bp-2],0FFFFh
+
+.ro_return:
+    mov     ax,word [bp-2]
+    mov     sp,bp
+    pop     bp
+    jmp     .return
+
+
 ; Writes to a file
 ; [ds:si]   File_name
 ; [es:di]   File_data
 ; cx        File_size
 .writeFile:
-    ;call    fat_writeFile
-    ; TODO: fat_writeFile2
+    push    ds          ; preserve
+    push    es
+    push    si
+    push    di
+    push    cx
+
+    push    cx          ; parameters are altered
+    push    di          ; so we can not pop them
+    push    es          ; off the stack to get
+    push    si          ; their original values
+    push    ds          ; back
+    call    fat_writeFile2
+    add     sp,10
+
+    pop     cx          ; restore
+    pop     di
+    pop     si
+    pop     es
+    pop     ds
+
     jmp     .return
 
 ; void ax execProgram( char * ds:si )

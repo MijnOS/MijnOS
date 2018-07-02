@@ -36,6 +36,80 @@ text_ferr   dw 0
 
 %endmacro
 
+%macro mConvertName 1
+
+    push    es
+    push    si
+    push    di
+
+    push    bx
+    mov     bx,ss
+    mov     es,bx
+    pop     bx
+
+    mov     si,file_buff
+    lea     di,[bp-%1]
+    call    cmd_convertString
+
+    pop     di
+    pop     si
+    pop     es
+
+%endmacro
+
+
+%macro mDebugName 0
+
+    ; 0) initialize
+    push    bp
+    mov     bp,sp
+    sub     sp,12       ; 11 but need 2-byte alignment
+    push    ax
+
+    ; 1) conversion
+    push    es
+    push    si
+
+    push    bx
+    mov     bx,ss
+    mov     es,bx
+    pop     bx
+
+    lea     di,[bp-12]
+    mov     si,file_buff
+    
+    call    cmd_convertString
+
+    pop     si
+    pop     es
+
+    ; 2) display
+    push    ds
+    push    si
+    
+    push    bx
+    mov     bx,ss
+    mov     ds,bx
+    pop     bx
+
+    lea     si,[bp-12]
+    mov     ax,INT_PRINT_STRING
+    int     70h
+
+    pop     si
+    pop     ds
+
+    ; 3) await
+    mov     ax,INT_KEYPRESS
+    int     70h
+
+    ; 4) return
+    pop     ax
+    mov     sp,bp
+    pop     bp
+
+%endmacro
+
 
 ;===============================================
 ; Entry point
@@ -354,6 +428,11 @@ np_refillScreen:
     mov     ax,INT_SET_CURSOR_POS
     int     70h
 
+    ; Return immediately if no text
+    mov     ax,word [text_size]
+    test    ax,ax
+    je      .return
+
     ; Copy the buffer contents
 .copy:
     mov     cx,word [text_size]
@@ -398,7 +477,6 @@ np_refillScreen:
 ; Menu + options
 ;===============================================
 handle_menu:
-
 
 .active:
     ; Move the cursor to the lower-left corner
@@ -449,20 +527,21 @@ handle_menu:
 
 ; Write to filename
 .m_write:
-    ; TODO:
     call    fn_typing
     test    ax,ax
-    jne     .loop
-    ;call    np_writeFile
+    jne     .m_close
+    call    np_writeFile
     jmp     .m_close
 
 ; Open from filename
 .m_open:
-    ; TODO:
     call    fn_typing
     test    ax,ax
-    jne     .loop
-    ;call    np_loadFile
+    jne     .m_close
+    call    np_loadFile
+    ; TODO: update cursor position, etc.
+    cmp     ax,0FFFFh
+    je      .m_quit     ; on error quit, should make it clearer
     jmp     .m_close
 
 ; Quit the application
@@ -479,75 +558,112 @@ handle_menu:
 ; Loads a file from the medium.
 ;===============================================
 np_loadFile:
+    ;mDebugName
+    ;ret
+
+    push    bp
+    mov     bp,sp
+    sub     sp,12       ; 11 required but 2-byte aligned necessary
     pusha
+    push    ds
+    push    es
 
-    ; file_name
-    ;mov    ds,ds
-    mov     si,file_buff
+    ; DEBUG: TODO: FIXME:
+    ;jmp     .return
 
-    ; file_size
-    push    dx
-    push    ax
-    mov     ax,INT_FILE_SIZE
-    int     70h
-    mov     word [text_size],dx
-    pop     ax
-    pop     dx
+; convert the string into a FAT compliant name
+.convert:
+    mConvertName 12
 
-    ; file_data
+; initialize variables and registers
+.init:
     mov     bx,ds
     mov     es,bx
-    mov     di,text_buffer
+    mov     di,text_buffer      ; file data
 
-    ; clear the text buffer
-    ;push    ax
-    ;push    di
-    ;push    cx
-    ;mov     al,0
-    ;mov     cx,BUFFER_SIZE
-    ;mov     di,text_buffer
-    ;cld
-    ;rep     stosb
-    ;pop     di
-    ;pop     cx
-    ;pop     ax
+    mov     bx,ss
+    mov     ds,bx
+    lea     si,[bp-12]          ; FAT compliant file name
 
-    ; load file
-    mov     cx,text_ferr
-    mov     ax,INT_LOAD_FILE
+    mov     cx,BUFFER_SIZE-1    ; max data
+
+    mov     ax,INT_READ_FILE
     int     70h
-    mov     ax,word [text_ferr]
+    cmp     ax,0FFFFh   ; correct?
+    je      .error      ; error
 
-    ; check for errors
-    test    ax,ax
-    jne     .error
+    mov     word [text_size],ax     ; store the file size
 
-.succes:
-    ; TODO: update the gui
-    ;call    np_refillScreen
-    jmp     .return
-
-.error:
-    mov     byte [opt_quit],1                   ; Terminate on load error
-    jmp     .return
-
+; return to caller
 .return:
-    mov     byte [opt_menu],0                   ; Hide the menu
+    pop     es
+    pop     ds
     popa
+    mov     sp,bp
+    pop     bp
     ret
+
+; an error occured
+.error:
+    mov     word [text_size],0
+    jmp     .return
+
 
 
 ;===============================================
 ; Writes a file from the medium.
 ;===============================================
 np_writeFile:
+    mDebugName
     ret
+
+    push    bp
+    mov     bp,sp
+
+.preserve:
+    push    ds
+    push    es
+    push    si
+    push    di
+    push    cx
+
+.write:
+    push    bx          ; set stack
+    mov     bx,ds
+    mov     es,bx
+    pop     bx
+
+    mov     si,np_tName ; set offsets
+    mov     di,np_tData
+
+    mov     cx,word [np_tData.size]
+    mov     ax,INT_WRITE_FILE
+    int     70h
+
+.restore:
+    pop     cx
+    pop     di
+    pop     si
+    pop     es
+    pop     ds
+
+; return to the caller
+.return:
+    mov     sp,bp
+    pop     bp
+    ret
+
+np_tName    db 'D0123456TXT',0
+np_tData    db 'Test from NP',0
+.size       dw $-np_tData-1
 
 
 ;===============================================
 ; Loops till the filename has been written
 ;===============================================
 fn_typing:
+    call    fn_clear                ; clear the old buffer
+
     mov     si,file_str
     mov     ax,INT_PRINT_STRING
     int     70h
@@ -681,12 +797,16 @@ fn_append:
 fn_clear:
     pusha
     mov     cx,word [file_buff.length]
+    mov     bx,file_buff
+    add     bx,cx
+
 .loop:
-    mov     bx,cx
     sub     bx,1
-    add     bx,file_buff
     mov     byte [bx],0
     loop    .loop
+
+.return:
+    mov     word [file_buff.count],0
     popa
     ret
 
@@ -697,3 +817,6 @@ fn_clear:
 ;===============================================
 np_keyDelete:
     ret
+
+
+%include "src/fatname.inc"

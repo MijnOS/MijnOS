@@ -25,11 +25,11 @@
 
 
 ; ax values for int 70h
-%define INT_FILE_SIZE       20h
 %define INT_RESERVED        0
-%define INT_LOAD_FILE       1
-%define INT_WRITE_FILE      5
-%define INT_EXEC_PROGRAM    2
+%define INT_LOAD_FILE       1                   ; loads for execution, aka programs
+%define INT_READ_FILE       6                   ; reads for random I/O, aka notepad
+%define INT_WRITE_FILE      5                   ; all write operations
+%define INT_EXEC_PROGRAM    2                   ; executes a loaded program
 %define INT_GPU_GRAPHICS    3                   ; VGA / 16-colors / 320x200 pixels
 %define INT_GPU_TEXT        4                   ; Text / 16-colors / 80x25 characters
 
