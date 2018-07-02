@@ -631,12 +631,16 @@ np_loadFile:
 ; Writes a file from the medium.
 ;===============================================
 np_writeFile:
-    mDebugName
-    ret
+    ;mDebugName
+    ;ret
 
     push    bp
     mov     bp,sp
     sub     sp,12
+
+; convert the string into a FAT compliant name
+.convert:
+    mConvertName 12
 
 .preserve:
     push    ds
@@ -646,15 +650,20 @@ np_writeFile:
     push    cx
 
 .write:
+    mov     cx,word [text_size]     ; data size
+
     push    bx          ; set stack
+
     mov     bx,ds
     mov     es,bx
-    pop     bx
+    mov     di,text_buffer          ; file data
 
-    mov     si,np_tName ; set offsets
-    mov     di,np_tData
+    mov     bx,ss
+    mov     ds,bx
+    lea     si,[bp-12]              ; file name
 
-    mov     cx,word [np_tData.size]
+    pop     bx   
+
     mov     ax,INT_WRITE_FILE
     int     70h
 
