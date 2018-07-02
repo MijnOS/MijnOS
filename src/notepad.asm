@@ -58,6 +58,24 @@ text_ferr   dw 0
 %endmacro
 
 
+%macro mDebugHex 0
+
+    push    ax
+    push    cx
+    
+    mov     cx,ax
+    mov     ax,INT_PRINT_HEX
+    int     70h
+
+    mov     ax,INT_KEYPRESS
+    int     70h
+
+    pop     cx
+    pop     ax
+
+%endmacro
+
+
 %macro mDebugName 0
 
     ; 0) initialize
@@ -558,9 +576,6 @@ handle_menu:
 ; Loads a file from the medium.
 ;===============================================
 np_loadFile:
-    ;mDebugName
-    ;ret
-
     push    bp
     mov     bp,sp
     sub     sp,12       ; 11 required but 2-byte aligned necessary
@@ -568,15 +583,14 @@ np_loadFile:
     push    ds
     push    es
 
-    ; DEBUG: TODO: FIXME:
-    ;jmp     .return
-
 ; convert the string into a FAT compliant name
 .convert:
     mConvertName 12
 
 ; initialize variables and registers
 .init:
+    push    ds
+
     mov     bx,ds
     mov     es,bx
     mov     di,text_buffer      ; file data
@@ -585,12 +599,15 @@ np_loadFile:
     mov     ds,bx
     lea     si,[bp-12]          ; FAT compliant file name
 
-    mov     cx,BUFFER_SIZE-1    ; max data
+    mov     cx,BUFFER_SIZE-1        ; max data
 
     mov     ax,INT_READ_FILE
     int     70h
-    cmp     ax,0FFFFh   ; correct?
-    je      .error      ; error
+
+    pop     ds                      ; restore DS for variable addressing
+
+    cmp     ax,0FFFFh
+    je      .error                  ; error
 
     mov     word [text_size],ax     ; store the file size
 
@@ -619,6 +636,7 @@ np_writeFile:
 
     push    bp
     mov     bp,sp
+    sub     sp,12
 
 .preserve:
     push    ds

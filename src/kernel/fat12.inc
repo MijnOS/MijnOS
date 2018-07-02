@@ -1369,20 +1369,21 @@ fat_getFileSize:
     lea     di,[bp-32]
     call    fat_searchEntry
     test    ax,ax
-    jne     .return
-
-.error:
-    mov     word [bp-4],0FFFFh
-    mov     word [bp-2],0FFFFh
+    jne     .error
 
 .return:
     pop     es
     popa
-    mov     dx,word [bp-4]
-    mov     ax,word [bp-2]
+    mov     dx,word [bp-2]
+    mov     ax,word [bp-4]
     mov     sp,bp
     pop     bp
     ret
+
+.error:
+    mov     word [bp-2],0FFFFh
+    mov     word [bp-4],0FFFFh
+    jmp     .return
 
 
 ;===============================================

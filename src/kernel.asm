@@ -215,24 +215,33 @@ kernel_interrupts:
 .ro_size:
     call    fat_getFileSize
     cmp     ax,0FFFFh
-    je      .ro_return          ; error
-    cmp     ax,cx
-    ja      .ro_return          ; prevent buffer overflow
+    je      .ro_error0           ; error
+    cmp     ax,word [bp-4]
+    ja      .ro_error1           ; prevent buffer overflow
     mov     word [bp-2],ax
 
 .ro_read:
     call    fat_loadFile
     test    ax,ax
-    je      .ro_return          ; error
-
-    ; an error occured, reset the size
-    mov     word [bp-2],0FFFFh
+    jne     .ro_error2          ; error
 
 .ro_return:
     mov     ax,word [bp-2]
     mov     sp,bp
     pop     bp
     jmp     .return
+
+.ro_error0:
+    mov     word [bp-2],0FFFFh
+    jmp     .ro_return
+
+.ro_error1:
+    mov     word [bp-2],0FFFEh
+    jmp     .ro_return
+
+.ro_error2:
+    mov     word [bp-2],0FFFDh
+    jmp     .ro_return
 
 
 ; Writes to a file
