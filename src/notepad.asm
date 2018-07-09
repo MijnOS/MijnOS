@@ -21,7 +21,6 @@ file_buff   times 16 db 0                       ; Max size is 12 incl. ext, excl
 .count      dw 0                                ; Number of written characters
 cursor_pos  dw 0                                ; Cursor position
 %define MENU_COLOR  070h
-text_ferr   dw 0
 backspace_workaround    db 0                    ; indicates if we need to work around the backspace issue
 
 
